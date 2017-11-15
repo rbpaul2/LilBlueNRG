@@ -44,6 +44,7 @@
 									<listOptionValue builtIn="false" value="../../../Library/BlueNRG1_Periph_Driver/inc"/>
 									<listOptionValue builtIn="false" value="../../../Library/CMSIS/Device/ST/BlueNRG1/Include"/>
 									<listOptionValue builtIn="false" value="../../"/>
+									<listOptionValue builtIn="false" value="../../../Library/Bluetooth_LE/inc"/>
 								</option>
 								<option id="com.atollic.truestudio.exe.release.toolchain.gcc.optimization.level.273367394" name="Optimization Level" superClass="com.atollic.truestudio.exe.release.toolchain.gcc.optimization.level" useByScannerDiscovery="false" value="com.atollic.truestudio.gcc.optimization.level.0s" valueType="enumerated"/>
 								<option id="com.atollic.truestudio.common_options.target.mcpu.491928174" name="Microcontroller" superClass="com.atollic.truestudio.common_options.target.mcpu" useByScannerDiscovery="false" value="BlueNRG-132" valueType="enumerated"/>
