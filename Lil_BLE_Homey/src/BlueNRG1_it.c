@@ -24,10 +24,14 @@
 /* Includes ------------------------------------------------------------------*/
 #include "BlueNRG1_it.h"
 #include "BlueNRG1_conf.h"
+#include "gp_timer.h"
 #include "ble_const.h" 
+#include "app_state.h"
 #include "bluenrg1_stack.h"
 #include "SDK_EVAL_Com.h"
+#include "Lil_MotionDetector.h"
 #include "clock.h"
+#include "osal.h"
 
 /** @addtogroup BlueNRG1_StdPeriph_Examples
   * @{
@@ -41,10 +45,22 @@
   * @{
   */ 
 
+extern uint16_t ServHandle,
+				TemperatureCharHandle,
+				HumidityCharHandle,
+				BlindCurrPosCharHandle,
+				BlindTargPosCharHandle,
+				BlindPosStateCharHandle,
+				MotionDetectedCharHandle;
+
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
+#define MOTION_ON	1
+#define MOTION_OFF	0
 /* Private variables ---------------------------------------------------------*/
+uint8_t MotionDetectedVal;
+
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -93,6 +109,60 @@ void SysTick_Handler(void)
 
 void GPIO_Handler(void)
 {
+	NVIC_DisableIRQ(UART_IRQn);
+
+	struct timer t;
+	/* If Motion Detector Interrupt set LED1 */
+	if( Lil_MotionDetectorGetITPendingBit(MOTION_DETECTOR_PIN) == SET ) {
+		Lil_MotionDetectorClearITPendingBit(MOTION_DETECTOR_PIN);
+
+		if( Lil_MotionDetectorGetState(MOTION_DETECTOR_PIN) == RESET ) {
+			//Motion Detector Output went low
+			SdkEvalLedOff(LED1);
+			MotionDetectedVal = MOTION_OFF;
+
+			Timer_Set(&t, CLOCK_SECOND*10);
+			while(aci_gatt_update_char_value(ServHandle,MotionDetectedCharHandle,0,1,&MotionDetectedVal)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
+				APP_FLAG_SET(TX_BUFFER_FULL);
+				while(APP_FLAG(TX_BUFFER_FULL)) {
+					BTLE_StackTick();
+					// Radio is busy (buffer full).
+					if(Timer_Expired(&t))
+						break;
+				}
+			}
+		}
+		else {
+			//Motion Detected
+			SdkEvalLedOn(LED1);
+			MotionDetectedVal = MOTION_ON;
+
+			Timer_Set(&t, CLOCK_SECOND*10);
+			while(aci_gatt_update_char_value(ServHandle,MotionDetectedCharHandle,0,1,&MotionDetectedVal)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
+				APP_FLAG_SET(TX_BUFFER_FULL);
+				while(APP_FLAG(TX_BUFFER_FULL)) {
+					BTLE_StackTick();
+					// Radio is busy (buffer full).
+					if(Timer_Expired(&t))
+						break;
+				}
+			}
+		}
+
+	}
+	/* If GPIO Interrupt Pin 13 */
+	else if ( GPIO_GetITPendingBit(GPIO_Pin_13) == SET ) {
+		GPIO_ClearITPendingBit(GPIO_Pin_13);
+
+		if( GPIO_ReadBit(GPIO_Pin_13) == RESET ) {
+			SdkEvalLedOff(LED2);
+		}
+		else {
+			SdkEvalLedOn(LED2);
+		}
+	}
+
+	NVIC_EnableIRQ(UART_IRQn);
 }
 /******************************************************************************/
 /*                 BlueNRG-1 Peripherals Interrupt Handlers                   */

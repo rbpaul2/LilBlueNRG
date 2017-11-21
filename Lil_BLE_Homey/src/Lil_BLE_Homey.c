@@ -30,6 +30,7 @@
 #include "chat.h"
 #include "clock.h"
 #include "SDK_EVAL_Config.h"
+#include "Lil_MotionDetector.h"
 #include "Chat_config.h"
 
 /* External variables --------------------------------------------------------*/
@@ -70,8 +71,18 @@ int main(void)
   /* Identify BlueNRG1 platform */
   SdkEvalIdentification();
   
+  /* Reset GPIOs to default */
+  GPIO_DeInit();
+
   /* Init Clock */
   Clock_Init();
+
+  /* LEDS initialization */
+  SdkEvalLedInit(LED1);
+
+  /* MotionDetector initialization */
+  Lil_MotionDetectorInit(MOTION_DETECTOR_PIN);
+  Lil_MotionDetectorIrq(MOTION_DETECTOR_PIN, IRQ_ON_BOTH_EDGE);
 
   /* Configure I/O communication channel:
        It requires the void IO_Receive_Data(uint8_t * rx_data, uint16_t data_size) function

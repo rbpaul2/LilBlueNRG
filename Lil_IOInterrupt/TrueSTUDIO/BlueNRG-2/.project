@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>Lil_BLE_Homey</name>
+	<name>Lil_IOInterrupt</name>
 	<comment></comment>
 	<projects>
 	</projects>
@@ -25,9 +25,14 @@
 	</natures>
 	<linkedResources>
 		<link>
-			<name>Hal</name>
-			<type>2</type>
-			<locationURI>virtual:/virtual</locationURI>
+			<name>BlueNRG1_it.c</name>
+			<type>1</type>
+			<locationURI>PARENT-2-PROJECT_LOC/BlueNRG1_it.c</locationURI>
+		</link>
+		<link>
+			<name>GPIO_InputInterrupt_main.c</name>
+			<type>1</type>
+			<locationURI>PARENT-2-PROJECT_LOC/GPIO_InputInterrupt_main.c</locationURI>
 		</link>
 		<link>
 			<name>Library</name>
@@ -35,12 +40,12 @@
 			<locationURI>virtual:/virtual</locationURI>
 		</link>
 		<link>
-			<name>SDK_Eval_BlueNRG1</name>
-			<type>2</type>
-			<locationURI>virtual:/virtual</locationURI>
+			<name>Lil_MotionDetector.c</name>
+			<type>1</type>
+			<locationURI>PARENT-2-PROJECT_LOC/Lil_MotionDetector.c</locationURI>
 		</link>
 		<link>
-			<name>Stack</name>
+			<name>SDK_Eval_BlueNRG1</name>
 			<type>2</type>
 			<locationURI>virtual:/virtual</locationURI>
 		</link>
@@ -48,31 +53,6 @@
 			<name>Startup</name>
 			<type>2</type>
 			<locationURI>virtual:/virtual</locationURI>
-		</link>
-		<link>
-			<name>User</name>
-			<type>2</type>
-			<locationURI>virtual:/virtual</locationURI>
-		</link>
-		<link>
-			<name>Hal/clock.c</name>
-			<type>1</type>
-			<locationURI>PARENT-3-PROJECT_LOC/Library/hal/src/clock.c</locationURI>
-		</link>
-		<link>
-			<name>Hal/context_switch.s</name>
-			<type>1</type>
-			<locationURI>PARENT-3-PROJECT_LOC/Library/hal/src/context_switch.s</locationURI>
-		</link>
-		<link>
-			<name>Hal/gp_timer.c</name>
-			<type>1</type>
-			<locationURI>PARENT-3-PROJECT_LOC/Library/hal/src/gp_timer.c</locationURI>
-		</link>
-		<link>
-			<name>Hal/osal.c</name>
-			<type>1</type>
-			<locationURI>PARENT-3-PROJECT_LOC/Library/hal/src/osal.c</locationURI>
 		</link>
 		<link>
 			<name>Library/BlueNRG1_adc.c</name>
@@ -83,11 +63,6 @@
 			<name>Library/BlueNRG1_dma.c</name>
 			<type>1</type>
 			<locationURI>PARENT-3-PROJECT_LOC/Library/BlueNRG1_Periph_Driver/src/BlueNRG1_dma.c</locationURI>
-		</link>
-		<link>
-			<name>Library/BlueNRG1_flash.c</name>
-			<type>1</type>
-			<locationURI>PARENT-3-PROJECT_LOC/Library/BlueNRG1_Periph_Driver/src/BlueNRG1_flash.c</locationURI>
 		</link>
 		<link>
 			<name>Library/BlueNRG1_gpio.c</name>
@@ -103,11 +78,6 @@
 			<name>Library/BlueNRG1_mft.c</name>
 			<type>1</type>
 			<locationURI>PARENT-3-PROJECT_LOC/Library/BlueNRG1_Periph_Driver/src/BlueNRG1_mft.c</locationURI>
-		</link>
-		<link>
-			<name>Library/BlueNRG1_pka.c</name>
-			<type>1</type>
-			<locationURI>PARENT-3-PROJECT_LOC/Library/BlueNRG1_Periph_Driver/src/BlueNRG1_pka.c</locationURI>
 		</link>
 		<link>
 			<name>Library/BlueNRG1_rng.c</name>
@@ -145,64 +115,54 @@
 			<locationURI>PARENT-3-PROJECT_LOC/Library/BlueNRG1_Periph_Driver/src/misc.c</locationURI>
 		</link>
 		<link>
+			<name>SDK_Eval_BlueNRG1/LPS25HB.c</name>
+			<type>1</type>
+			<locationURI>PARENT-2-PROJECT_LOC/SDK_Eval_BlueNRG1/src/LPS25HB.c</locationURI>
+		</link>
+		<link>
+			<name>SDK_Eval_BlueNRG1/LSM6DS3.c</name>
+			<type>1</type>
+			<locationURI>PARENT-2-PROJECT_LOC/SDK_Eval_BlueNRG1/src/LSM6DS3.c</locationURI>
+		</link>
+		<link>
 			<name>SDK_Eval_BlueNRG1/SDK_EVAL_Button.c</name>
 			<type>1</type>
-			<locationURI>PARENT-3-PROJECT_LOC/Library/SDK_Eval_BlueNRG1/src/SDK_EVAL_Button.c</locationURI>
+			<locationURI>PARENT-2-PROJECT_LOC/SDK_Eval_BlueNRG1/src/SDK_EVAL_Button.c</locationURI>
 		</link>
 		<link>
 			<name>SDK_Eval_BlueNRG1/SDK_EVAL_Com.c</name>
 			<type>1</type>
-			<locationURI>PARENT-3-PROJECT_LOC/Library/SDK_Eval_BlueNRG1/src/SDK_EVAL_Com.c</locationURI>
+			<locationURI>PARENT-2-PROJECT_LOC/SDK_Eval_BlueNRG1/src/SDK_EVAL_Com.c</locationURI>
 		</link>
 		<link>
 			<name>SDK_Eval_BlueNRG1/SDK_EVAL_Config.c</name>
 			<type>1</type>
-			<locationURI>PARENT-3-PROJECT_LOC/Library/SDK_Eval_BlueNRG1/src/SDK_EVAL_Config.c</locationURI>
+			<locationURI>PARENT-2-PROJECT_LOC/SDK_Eval_BlueNRG1/src/SDK_EVAL_Config.c</locationURI>
+		</link>
+		<link>
+			<name>SDK_Eval_BlueNRG1/SDK_EVAL_I2C.c</name>
+			<type>1</type>
+			<locationURI>PARENT-2-PROJECT_LOC/SDK_Eval_BlueNRG1/src/SDK_EVAL_I2C.c</locationURI>
 		</link>
 		<link>
 			<name>SDK_Eval_BlueNRG1/SDK_EVAL_Led.c</name>
 			<type>1</type>
-			<locationURI>PARENT-3-PROJECT_LOC/Library/SDK_Eval_BlueNRG1/src/SDK_EVAL_Led.c</locationURI>
+			<locationURI>PARENT-2-PROJECT_LOC/SDK_Eval_BlueNRG1/src/SDK_EVAL_Led.c</locationURI>
 		</link>
 		<link>
-			<name>Stack/libbluenrg1_stack.a</name>
+			<name>SDK_Eval_BlueNRG1/SDK_EVAL_SPI.c</name>
 			<type>1</type>
-			<locationURI>PARENT-3-PROJECT_LOC/Library/Bluetooth_LE/library/libbluenrg1_stack.a</locationURI>
+			<locationURI>PARENT-2-PROJECT_LOC/SDK_Eval_BlueNRG1/src/SDK_EVAL_SPI.c</locationURI>
+		</link>
+		<link>
+			<name>Startup/context_switch.s</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/Library/hal/src/context_switch.s</locationURI>
 		</link>
 		<link>
 			<name>Startup/system_bluenrg1.c</name>
 			<type>1</type>
-			<locationURI>PARENT-3-PROJECT_LOC/Library/CMSIS/Device/ST/BlueNRG1/source/system_bluenrg1.c</locationURI>
-		</link>
-		<link>
-			<name>User/BlueNRG1_it.c</name>
-			<type>1</type>
-			<locationURI>PARENT-2-PROJECT_LOC/src/BlueNRG1_it.c</locationURI>
-		</link>
-		<link>
-			<name>User/Lil_BLE_Homey.c</name>
-			<type>1</type>
-			<locationURI>PARENT-2-PROJECT_LOC/src/Lil_BLE_Homey.c</locationURI>
-		</link>
-		<link>
-			<name>User/Lil_MotionDetector.c</name>
-			<type>1</type>
-			<locationURI>PARENT-2-PROJECT_LOC/src/Lil_MotionDetector.c</locationURI>
-		</link>
-		<link>
-			<name>User/chat.c</name>
-			<type>1</type>
-			<locationURI>PARENT-2-PROJECT_LOC/src/chat.c</locationURI>
-		</link>
-		<link>
-			<name>User/gatt_db.c</name>
-			<type>1</type>
-			<locationURI>PARENT-2-PROJECT_LOC/src/gatt_db.c</locationURI>
-		</link>
-		<link>
-			<name>User/inc</name>
-			<type>2</type>
-			<locationURI>PARENT-2-PROJECT_LOC/inc</locationURI>
+			<locationURI>PARENT-3-PROJECT_LOC/Library/CMSIS/Device/ST/BlueNRG1/Source/system_bluenrg1.c</locationURI>
 		</link>
 	</linkedResources>
 </projectDescription>
