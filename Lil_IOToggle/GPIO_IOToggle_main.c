@@ -57,21 +57,32 @@ int main(void)
   SdkEvalIdentification();
   
   /* LEDS initialization */
-  SdkEvalLedInit(LED1);
-  SdkEvalLedInit(LED2);
-  SdkEvalLedInit(LED3);
+ // SdkEvalLedInit(LED1);
+  //SdkEvalLedInit(LED2);
+  //SdkEvalLedInit(LED3);
+  //GPIO_DeInit();
+
+  /*GPIO_InitType GPIO_InitStructure;
+  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_8;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Output;
+  GPIO_InitStructure.GPIO_Pull = DISABLE;
+  GPIO_InitStructure.GPIO_HighPwr = DISABLE;
+  GPIO_Init(&GPIO_InitStructure);*/
+
+  GPIO_InitOutputPinx(GPIO_Pin_8);
   
   /* Configure SysTick to generate interrupt */
-  SysTick_Config(SYST_CLOCK/1000 - 1);  
+  //SysTick_Config(SYST_CLOCK/1000 - 1);
   
   /* Infinite loop */
   while(1) {
-    SdkEvalLedToggle(LED1);
+    //SdkEvalLedToggle(LED1);
+	GPIO_ToggleBits(GPIO_Pin_8);
     SdkDelayMs(250);
-    SdkEvalLedToggle(LED2);    
-    SdkDelayMs(250);
-    SdkEvalLedToggle(LED3);  
-    SdkDelayMs(250);
+    //SdkEvalLedToggle(LED2);
+    //SdkDelayMs(250);
+    //SdkEvalLedToggle(LED3);
+    //SdkDelayMs(250);
   }
 }
 
