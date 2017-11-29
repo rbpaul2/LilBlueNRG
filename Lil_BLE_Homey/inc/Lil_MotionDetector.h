@@ -34,7 +34,7 @@
 /** @defgroup Lil_MotionDetector_Exported_Macros           SDK EVAL Button Exported Macros
  * @{
  */
-#define MOTION_DETECTOR_PIN			GPIO_Pin_11
+#define MOTION_DETECTOR_PIN			GPIO_Pin_7
 /**
  * @}
  */

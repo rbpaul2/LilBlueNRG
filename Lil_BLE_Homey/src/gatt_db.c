@@ -22,6 +22,7 @@
 	}while(0)
 
 uint16_t ServHandle,
+	MotionServHandle,
 	TemperatureCharHandle,
 	HumidityCharHandle,
 	MotionDetectedCharHandle,
@@ -30,7 +31,7 @@ uint16_t ServHandle,
 	BlindPosStateCharHandle;
 
 /* UUIDs */
-Service_UUID_t service_uuid;
+Service_UUID_t service_uuid,service_uuidmotion;
 Char_UUID_t char_uuid;
 
 /*******************************************************************************
@@ -58,6 +59,9 @@ uint8_t Add_ChatService(void)
   const uint8_t uuid[16] = 						{ 0x66, 0x9a, 0x0c, 0x20, 0x00, 0x08,
 		  	  	  	  	  	  	  	  	  	  	  0x96, 0x9e, 0xe2, 0x11, 0x9e, 0xb1,
 												  0xe0, 0x38, 0x17, 0xFF };
+  const uint8_t uuidmotion[16] = 				{ 0x66, 0x9a, 0x0c, 0x20, 0x00, 0x08,
+  		  	  	  	  	  	  	  	  	  	  	  0x96, 0x9e, 0xe2, 0x11, 0x9e, 0xb1,
+  												  0xe0, 0x38, 0x17, 0xF0 };
   const uint8_t charUuidTemperature[16] = 		{ 0x66, 0x9a, 0x0c, 0x20, 0x00, 0x08,
 		  	  	  	  	  	  	  	  	  	  	  0x96, 0x9e, 0xe2, 0x11, 0x9e, 0xb1,
 												  0xf1, 0x38, 0x17, 0x00 };
@@ -79,7 +83,12 @@ uint8_t Add_ChatService(void)
 
   Osal_MemCpy(&service_uuid.Service_UUID_128, uuid, 16);
   ret = aci_gatt_add_service(UUID_TYPE_128, &service_uuid, PRIMARY_SERVICE, 17 /* numAttributeRecords */, &ServHandle);
-  if (ret != BLE_STATUS_SUCCESS) goto fail;    
+  if (ret != BLE_STATUS_SUCCESS) goto fail;
+
+  //FIXME
+  Osal_MemCpy(&service_uuidmotion.Service_UUID_128, uuidmotion, 16);
+    ret = aci_gatt_add_service(UUID_TYPE_128, &service_uuidmotion, PRIMARY_SERVICE, 17 /* numAttributeRecords */, &MotionServHandle);
+    if (ret != BLE_STATUS_SUCCESS) goto fail;
 
   Osal_MemCpy(&char_uuid.Char_UUID_128, charUuidBlindCurrPos, 16);
   ret =  aci_gatt_add_char(ServHandle, UUID_TYPE_128, &char_uuid, 20, CHAR_PROP_WRITE|CHAR_PROP_WRITE_WITHOUT_RESP, ATTR_PERMISSION_NONE, GATT_NOTIFY_ATTRIBUTE_WRITE,
@@ -87,23 +96,23 @@ uint8_t Add_ChatService(void)
   if (ret != BLE_STATUS_SUCCESS) goto fail;
   PRINTF("[Added Char] BlindCurrPos UUID[12] = %02X\n", charUuidBlindCurrPos[12]);
 
-  Osal_MemCpy(&char_uuid.Char_UUID_128, charUuidHumidity, 16);
-  ret =  aci_gatt_add_char(ServHandle, UUID_TYPE_128, &char_uuid, 4, CHAR_PROP_NOTIFY, ATTR_PERMISSION_NONE, 0,
-                16, 0, &HumidityCharHandle);
-  if (ret != BLE_STATUS_SUCCESS) goto fail;
-  PRINTF("[Added Char] Humidity UUID[12] = %02X\n", charUuidHumidity[12]);
+//  Osal_MemCpy(&char_uuid.Char_UUID_128, charUuidHumidity, 16);
+//  ret =  aci_gatt_add_char(ServHandle, UUID_TYPE_128, &char_uuid, 4, CHAR_PROP_NOTIFY, ATTR_PERMISSION_NONE, 0,
+//                16, 0, &HumidityCharHandle);
+//  if (ret != BLE_STATUS_SUCCESS) goto fail;
+//  PRINTF("[Added Char] Humidity UUID[12] = %02X\n", charUuidHumidity[12]);
 
   Osal_MemCpy(&char_uuid.Char_UUID_128, charUuidMotionDetected, 16);
-  ret =  aci_gatt_add_char(ServHandle, UUID_TYPE_128, &char_uuid, 1, CHAR_PROP_NOTIFY, ATTR_PERMISSION_NONE, 0,
+  ret =  aci_gatt_add_char(MotionServHandle, UUID_TYPE_128, &char_uuid, 1, CHAR_PROP_NOTIFY, ATTR_PERMISSION_NONE, 0,
 				16, 0, &MotionDetectedCharHandle);
   if (ret != BLE_STATUS_SUCCESS) goto fail;
   PRINTF("[Added Char] MotionDetected UUID[12] = %02X\n", charUuidMotionDetected[12]);
 
-  Osal_MemCpy(&char_uuid.Char_UUID_128, charUuidTemperature, 16);
-  ret =  aci_gatt_add_char(ServHandle, UUID_TYPE_128, &char_uuid, 4, CHAR_PROP_NOTIFY, ATTR_PERMISSION_NONE, 0,
-                  16, 0, &TemperatureCharHandle);
-  if (ret != BLE_STATUS_SUCCESS) goto fail;
-  PRINTF("[Added Char] Temperature UUID[12] = %02X\n", charUuidTemperature[12]);
+//  Osal_MemCpy(&char_uuid.Char_UUID_128, charUuidTemperature, 16);
+//  ret =  aci_gatt_add_char(ServHandle, UUID_TYPE_128, &char_uuid, 4, CHAR_PROP_NOTIFY, ATTR_PERMISSION_NONE, 0,
+//                  16, 0, &TemperatureCharHandle);
+//  if (ret != BLE_STATUS_SUCCESS) goto fail;
+//  PRINTF("[Added Char] Temperature UUID[12] = %02X\n", charUuidTemperature[12]);
 
   Osal_MemCpy(&char_uuid.Char_UUID_128, charUuidBlindTargPos, 16);
   ret =  aci_gatt_add_char(ServHandle, UUID_TYPE_128, &char_uuid, 20, CHAR_PROP_WRITE|CHAR_PROP_WRITE_WITHOUT_RESP, ATTR_PERMISSION_NONE, GATT_NOTIFY_ATTRIBUTE_WRITE,

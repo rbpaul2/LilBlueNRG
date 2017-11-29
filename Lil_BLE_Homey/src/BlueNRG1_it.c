@@ -55,6 +55,16 @@ extern uint16_t ServHandle,
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
+#ifndef DEBUG
+#define DEBUG 1
+#endif
+#if DEBUG
+#include <stdio.h>
+#define PRINTF(...) printf(__VA_ARGS__)
+#else
+#define PRINTF(...)
+#endif
+
 /* Private macro -------------------------------------------------------------*/
 #define MOTION_ON	1
 #define MOTION_OFF	0
@@ -113,14 +123,13 @@ void GPIO_Handler(void)
 
 	struct timer t;
 	/* If Motion Detector Interrupt set LED1 */
-	if( Lil_MotionDetectorGetITPendingBit(MOTION_DETECTOR_PIN) == SET ) {
-		Lil_MotionDetectorClearITPendingBit(MOTION_DETECTOR_PIN);
+	if( Lil_MotionDetectorGetITPendingBit((uint32_t)0x00004000) == SET ) {
+		Lil_MotionDetectorClearITPendingBit((uint32_t)0x00004000);
 
-		if( Lil_MotionDetectorGetState(MOTION_DETECTOR_PIN) == RESET ) {
+		if( Lil_MotionDetectorGetState((uint32_t)0x00004000) == RESET ) {
 			//Motion Detector Output went low
-			SdkEvalLedOff(LED1);
 			MotionDetectedVal = MOTION_OFF;
-
+			PRINTF("MOTION_OFF\r\n");
 			Timer_Set(&t, CLOCK_SECOND*10);
 			while(aci_gatt_update_char_value(ServHandle,MotionDetectedCharHandle,0,1,&MotionDetectedVal)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
 				APP_FLAG_SET(TX_BUFFER_FULL);
@@ -134,9 +143,8 @@ void GPIO_Handler(void)
 		}
 		else {
 			//Motion Detected
-			SdkEvalLedOn(LED1);
 			MotionDetectedVal = MOTION_ON;
-
+			PRINTF("MOTION_ON\r\n");
 			Timer_Set(&t, CLOCK_SECOND*10);
 			while(aci_gatt_update_char_value(ServHandle,MotionDetectedCharHandle,0,1,&MotionDetectedVal)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
 				APP_FLAG_SET(TX_BUFFER_FULL);
@@ -150,6 +158,7 @@ void GPIO_Handler(void)
 		}
 
 	}
+
 	/* If GPIO Interrupt Pin 13 */
 	else if ( GPIO_GetITPendingBit(GPIO_Pin_13) == SET ) {
 		GPIO_ClearITPendingBit(GPIO_Pin_13);

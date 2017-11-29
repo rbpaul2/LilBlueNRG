@@ -11,15 +11,15 @@
 /* Default number of link */
 #define MIN_NUM_LINK                1
 /* Default number of GAP and GATT services */
-#define DEFAULT_NUM_GATT_SERVICES   2
+#define DEFAULT_NUM_GATT_SERVICES   5
 /* Default number of GAP and GATT attributes */
-#define DEFAULT_NUM_GATT_ATTRIBUTES 9 // REFER TO USER MANUAL PM0257 Section 2.3
+#define DEFAULT_NUM_GATT_ATTRIBUTES 15 // REFER TO USER MANUAL PM0257 Section 2.3
 
 /* Number of services requests from the homey app */
-#define NUM_APP_GATT_SERVICES 1
+#define NUM_APP_GATT_SERVICES 2
 
 /* Number of attributes requests from the homey app */
-#define NUM_APP_GATT_ATTRIBUTES 17
+#define NUM_APP_GATT_ATTRIBUTES 30
 
 /* Number of links needed for the demo: 1
  * Only 1 the default
@@ -34,7 +34,7 @@
 
 /* Array size for the attribute value for OTA service */
 #if defined (ST_OTA_LOWER_APPLICATION) || defined (ST_OTA_HIGHER_APPLICATION)
-#define OTA_ATT_VALUE_ARRAY_SIZE  (119)    /* OTA service is used: 4 characteristics (1 notify property) */
+#define OTA_ATT_VALUE_ARRAY_SIZE  (200)    /* OTA service is used: 4 characteristics (1 notify property) */
 #else
 #define OTA_ATT_VALUE_ARRAY_SIZE (0)       /* No OTA service is used */
 #endif

@@ -78,11 +78,11 @@ int main(void)
   Clock_Init();
 
   /* LEDS initialization */
-  SdkEvalLedInit(LED1);
+  //SdkEvalLedInit(LED1);
 
   /* MotionDetector initialization */
-  Lil_MotionDetectorInit(MOTION_DETECTOR_PIN);
-  Lil_MotionDetectorIrq(MOTION_DETECTOR_PIN, IRQ_ON_BOTH_EDGE);
+  Lil_MotionDetectorInit((uint32_t)0x00004000);
+  Lil_MotionDetectorIrq((uint32_t)0x00004000, IRQ_ON_BOTH_EDGE);
 
   /* Configure I/O communication channel:
        It requires the void IO_Receive_Data(uint8_t * rx_data, uint16_t data_size) function
