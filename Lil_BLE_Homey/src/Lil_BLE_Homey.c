@@ -87,7 +87,8 @@ int main(void)
   /* Configure I/O communication channel:
        It requires the void IO_Receive_Data(uint8_t * rx_data, uint16_t data_size) function
        where user received data should be processed */
-  SdkEvalComIOConfig(Process_InputData);
+  //SdkEvalComIOConfig(Process_InputData);
+  SdkEvalComUartInit(UART_BAUDRATE);
 
   /* BlueNRG-1 stack init */
   ret = BlueNRG_Stack_Initialization(&BlueNRG_Stack_Init_params);

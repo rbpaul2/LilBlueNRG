@@ -50,17 +50,18 @@ extern volatile int app_flags;
   * @brief  Flags for application
   */ 
 #define SET_CONNECTABLE           0x0100
-#define CONNECTED                 0x0200
-#define NOTIFICATIONS_ENABLED     0x0400
+#define CONNECTED_TO_SLAVE        0x0200
+#define CONNECTED_TO_HUB		  0x0400
+#define NOTIFICATIONS_ENABLED     0x0800
 
 /* Added flags for handling TX, RX characteristics discovery */
-#define START_READ_TX_CHAR_HANDLE 0x0800 
-#define END_READ_TX_CHAR_HANDLE   0x1000
-#define START_READ_RX_CHAR_HANDLE 0x2000
-#define END_READ_RX_CHAR_HANDLE   0x4000
+#define START_READ_MD_CHAR_HANDLE 0x1000
+#define END_READ_MD_CHAR_HANDLE   0x2000
+#define START_READ_RX_CHAR_HANDLE 0x4000
+#define END_READ_RX_CHAR_HANDLE   0x8000
 
 /* GATT EVT_BLUE_GATT_TX_POOL_AVAILABLE event */
-#define TX_BUFFER_FULL            0x8000
+#define TX_BUFFER_FULL            0x010000
 
 /* Exported macros -----------------------------------------------------------*/
 #define APP_FLAG(flag) (app_flags & flag)

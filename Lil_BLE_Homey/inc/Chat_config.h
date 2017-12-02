@@ -16,7 +16,7 @@
 #define DEFAULT_NUM_GATT_ATTRIBUTES 15 // REFER TO USER MANUAL PM0257 Section 2.3
 
 /* Number of services requests from the homey app */
-#define NUM_APP_GATT_SERVICES 2
+#define NUM_APP_GATT_SERVICES 3
 
 /* Number of attributes requests from the homey app */
 #define NUM_APP_GATT_ATTRIBUTES 30
@@ -24,7 +24,7 @@
 /* Number of links needed for the demo: 1
  * Only 1 the default
  */
-#define NUM_LINKS               (MIN_NUM_LINK)
+#define NUM_LINKS               2 //(MIN_NUM_LINK)
 
 /* Number of GATT attributes needed for the chat demo. */
 #define NUM_GATT_ATTRIBUTES     (DEFAULT_NUM_GATT_ATTRIBUTES + NUM_APP_GATT_ATTRIBUTES)

@@ -44,10 +44,18 @@ typedef struct discoveryContext_s {
 
 #define DISCOVERY_TIMEOUT 3000 /* at least 3 seconds */
 
-#define DISCOVERY_PROC_SCAN_INT 0x4000 
-#define DISCOVERY_PROC_SCAN_WIN 0x4000
-#define ADV_INT_MIN 0x90
-#define ADV_INT_MAX 0x90 
+/* Multiple Connection Timings */
+/*
+ * See PM0257 Manual, p88
+ */
+
+//Discovery Intervals
+#define DISCOVERY_PROC_SCAN_INT 0x0010 		//0x4000 originally
+#define DISCOVERY_PROC_SCAN_WIN 0x0010 		//0x4000 originally
+
+//Advertising Intervals
+#define ADV_INT_MIN 0x20 					//0x60 originally
+#define ADV_INT_MAX 0x100 					//0x60 originally
 
 /* Private macros ------------------------------------------------------------*/
 #ifndef DEBUG
@@ -63,7 +71,8 @@ typedef struct discoveryContext_s {
 /* Private variables ---------------------------------------------------------*/
 static discoveryContext_t discovery;
 volatile int app_flags = SET_CONNECTABLE;
-volatile uint16_t connection_handle = 0;
+volatile uint16_t hub_connection_handle = 0;
+volatile uint16_t slave_connection_handle = 0;
 extern uint16_t ServHandle,
 				TemperatureCharHandle,
 				HumidityCharHandle,
@@ -73,14 +82,15 @@ extern uint16_t ServHandle,
 				MotionDetectedCharHandle;
 
 /* UUIDs */
-UUID_t UUID_Tx;
+UUID_t UUID_Md;
 UUID_t UUID_Rx; //Used when discovering characteristics on other BLUENRG, when this is master role
 
-uint16_t tx_handle, rx_handle; 
+uint16_t md_handle, rx_handle;
 uint16_t discovery_time = 0; 
 uint8_t device_role = 0xFF;
 uint8_t counter = 0;
-uint8_t local_name[] = {AD_TYPE_COMPLETE_LOCAL_NAME,'L','i','l','_','B','L','E','_','H','o','m','e','y','0','0'};
+uint8_t vent_name[] = {AD_TYPE_COMPLETE_LOCAL_NAME,'L','i','l','_','V','e','n','t','H','o','m','e','y','0','0'};
+uint8_t blinds_name[] = {AD_TYPE_COMPLETE_LOCAL_NAME,'L','i','l','_','B','l','i','n','d','H','o','m','e','y','0'};
 uint8_t hub_name[] = {AD_TYPE_COMPLETE_LOCAL_NAME,'L','i','l','_','H','u','b'};
 
 static char cmd[CMD_BUFF_SIZE];
@@ -130,7 +140,7 @@ void Process_InputData(uint8_t* data_buffer, uint16_t Nb_bytes)
               }  
             }     
           } else if (device_role == MASTER_ROLE) {
-            while(aci_gatt_write_without_resp(connection_handle, rx_handle+1, len, (uint8_t *)cmd+j)==BLE_STATUS_NOT_ALLOWED) { 
+            while(aci_gatt_write_without_resp(slave_connection_handle, rx_handle+1, len, (uint8_t *)cmd+j)==BLE_STATUS_NOT_ALLOWED) {
               BTLE_StackTick();
               // Radio is busy (buffer full).
               if(Timer_Expired(&t))
@@ -174,26 +184,30 @@ void Reset_DiscoveryContext(void)
 void Setup_HomeyDeviceAddress(void)
 {
   tBleStatus ret;
+#ifdef LIL_VENT
+  uint8_t bdaddr[] = {0x01, 0x00, 0x00, 0xE1, 0x80, 0x02};
+#else
   uint8_t bdaddr[] = {0x00, 0x00, 0x00, 0xE1, 0x80, 0x02};
-  uint8_t random_number[8];
+#endif
+  //uint8_t random_number[8];
   
   /* get a random number from BlueNRG */ 
-  ret = hci_le_rand(random_number);
-  if(ret != BLE_STATUS_SUCCESS)
-     PRINTF("hci_le_rand() call failed: 0x%02x\n", ret);
-  
-  
-  discovery_time = DISCOVERY_TIMEOUT; 
+//  ret = hci_le_rand(random_number);
+//  if(ret != BLE_STATUS_SUCCESS)
+//     PRINTF("hci_le_rand() call failed: 0x%02x\n", ret);
+
+
+  discovery_time = DISCOVERY_TIMEOUT;
 
   /* setup discovery time with random number */
-  for (uint8_t i=0; i<8; i++) {
-    discovery_time += (2*random_number[i]);
-  } 
-  
-  /* Setup last 3 bytes of public address with random number */
-  bdaddr[0] = (uint8_t) (random_number[0]);
-  bdaddr[1] = (uint8_t) (random_number[3]);
-  bdaddr[2] = (uint8_t) (random_number[6]);
+//  for (uint8_t i=0; i<8; i++) {
+//    discovery_time += (2*random_number[i]);
+//  }
+//
+//  /* Setup last 3 bytes of public address with random number */
+//  bdaddr[0] = (uint8_t) (random_number[0]);
+//  bdaddr[1] = (uint8_t) (random_number[3]);
+//  bdaddr[2] = (uint8_t) (random_number[6]);
   
   ret = aci_hal_write_config_data(CONFIG_DATA_PUBADDR_OFFSET, CONFIG_DATA_PUBADDR_LEN, bdaddr);
   if(ret != BLE_STATUS_SUCCESS) {
@@ -208,13 +222,13 @@ void Setup_HomeyDeviceAddress(void)
 }
 
 /*******************************************************************************
-* Function Name  : Find_DeviceName.
+* Function Name  : Check_DeviceName.
 * Description    : Extracts the device name.
 * Input          : Data length.
 *                  Data value
 * Return         : TRUE if the local name found is the expected one, FALSE otherwise.
 *******************************************************************************/
-uint8_t Find_DeviceName(uint8_t data_length, uint8_t *data_value)
+uint8_t Check_DeviceName(uint8_t data_length, uint8_t *data_value)
 {
   uint8_t index = 0;
   
@@ -222,8 +236,13 @@ uint8_t Find_DeviceName(uint8_t data_length, uint8_t *data_value)
     /* Advertising data fields: len, type, values */
     /* Check if field is complete local name and the lenght is the expected one for BLE NEW Chat  */
     if (data_value[index+1] == AD_TYPE_COMPLETE_LOCAL_NAME) {
-      /* check if found device name is the expected one: local_name */ 
+      /* check if found device name is the expected one: vent_name */
+#ifdef LIL_VENT
+      if (memcmp(&data_value[index+1], &blinds_name[0], BLE_NEW_CHAT_COMPLETE_LOCAL_NAME_SIZE) == 0)
+#else
+      // If blinds, how to only allow slave?
       if (memcmp(&data_value[index+1], &hub_name[0], BLE_NEW_CHAT_COMPLETE_LOCAL_NAME_SIZE) == 0)
+#endif
         return TRUE;
       else
         return FALSE;
@@ -261,6 +280,7 @@ uint8_t Lil_BLE_HomeyInit(void)
   }
 
   /* GAP Init */
+#ifdef LIL_VENT
   ret = aci_gap_init(GAP_CENTRAL_ROLE | GAP_PERIPHERAL_ROLE,
 		  	  	  	 0,
 					 0x07,
@@ -268,6 +288,15 @@ uint8_t Lil_BLE_HomeyInit(void)
                      &dev_name_char_handle,
 					 &appearance_char_handle
 					 );
+#else
+  ret = aci_gap_init(GAP_PERIPHERAL_ROLE,
+  		  	  	  	 0,
+  					 0x07,
+  					 &service_handle,
+                       &dev_name_char_handle,
+  					 &appearance_char_handle
+  					 );
+#endif
   if(ret != BLE_STATUS_SUCCESS) {
     PRINTF("GAP_Init failed: 0x%02x\n", ret);
     return ret;
@@ -300,12 +329,22 @@ void Connection_StateMachine(void)
   case (INIT):
     {
       Reset_DiscoveryContext();
-      discovery.device_state = START_DISCOVERY_PROC;
+      if (APP_FLAG(CONNECTED_TO_SLAVE))
+      {
+    	  PRINTF("Connected to Blinds! Entering Discovery Mode... \n");
+    	  discovery.device_state = ENTER_DISCOVERY_MODE;
+      }
+      else
+      {
+    	  discovery.device_state = START_DISCOVERY_PROC;
+      }
     }
     break; /* end case (INIT) */
   case (START_DISCOVERY_PROC):
     {
-      ret = aci_gap_start_general_discovery_proc(DISCOVERY_PROC_SCAN_INT, DISCOVERY_PROC_SCAN_WIN, PUBLIC_ADDR, 0x00); 
+#ifdef LIL_VENT
+	  ret = aci_gap_start_general_discovery_proc(DISCOVERY_PROC_SCAN_INT, DISCOVERY_PROC_SCAN_WIN, PUBLIC_ADDR, 0x00);
+
       if (ret != BLE_STATUS_SUCCESS) {
         PRINTF("aci_gap_start_general_discovery_proc() failed: %02X\n",ret);
         discovery.device_state = DISCOVERY_ERROR; 
@@ -316,6 +355,11 @@ void Connection_StateMachine(void)
         discovery.check_disc_mode_timer = FALSE; 
         discovery.device_state = WAIT_TIMER_EXPIRED; 
       }
+#else
+        discovery.check_disc_proc_timer = FALSE;
+        discovery.startTime = 0;
+        discovery.device_state = ENTER_DISCOVERY_MODE;
+#endif
     }
     break;/* end case (START_DISCOVERY_PROC) */
   case (WAIT_TIMER_EXPIRED):
@@ -384,7 +428,7 @@ void Connection_StateMachine(void)
       /* Do connection with first discovered device */ 
       ret = aci_gap_create_connection(DISCOVERY_PROC_SCAN_INT, DISCOVERY_PROC_SCAN_WIN,
                                       discovery.device_found_address_type, discovery.device_found_address,
-                                      PUBLIC_ADDR, 40, 40, 0, 60, 2000 , 2000); 
+                                      PUBLIC_ADDR, 0x6C, 0x6C, 0, 0xC80, 0x000C, 0x000C); //originally PUBLIC_ADDR, 40, 40, 0, 60, 2000, 2000);
       if (ret != BLE_STATUS_SUCCESS) {
         PRINTF("aci_gap_create_connection() failed: 0x%02x\n", ret);
         discovery.device_state = DISCOVERY_ERROR; 
@@ -406,8 +450,14 @@ void Connection_StateMachine(void)
       /* disable scan response */
       hci_le_set_scan_response_data(0,NULL);
       
+#ifdef LIL_VENT
       ret = aci_gap_set_discoverable(ADV_IND, ADV_INT_MIN, ADV_INT_MAX, PUBLIC_ADDR, NO_WHITE_LIST_USE,
-                                     sizeof(local_name), local_name, 0, NULL, 0x6, 0x8); 
+                                     sizeof(vent_name), vent_name, 0, NULL, 0x10, 0x10);
+#else
+      ret = aci_gap_set_discoverable(ADV_IND, ADV_INT_MIN, ADV_INT_MAX, PUBLIC_ADDR, NO_WHITE_LIST_USE,
+                                           sizeof(blinds_name), blinds_name, 0, NULL, 0x6, 0x8);
+#endif
+
       if (ret != BLE_STATUS_SUCCESS) {
         PRINTF("aci_gap_set_discoverable() failed: 0x%02x\n", ret);
         discovery.device_state = DISCOVERY_ERROR; 
@@ -445,35 +495,38 @@ void APP_Tick(void)
         
   if (device_role == MASTER_ROLE) {
     /* Start TX handle Characteristic discovery if not yet done */
-    if (APP_FLAG(CONNECTED) && !APP_FLAG(END_READ_TX_CHAR_HANDLE)) {
-      if (!APP_FLAG(START_READ_TX_CHAR_HANDLE)) {
+    if (APP_FLAG(CONNECTED_TO_SLAVE) && !APP_FLAG(END_READ_MD_CHAR_HANDLE)) {
+      if (!APP_FLAG(START_READ_MD_CHAR_HANDLE)) {
         /* Discovery TX characteristic handle by UUID 128 bits */
-        const uint8_t charUuid128_TX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe1,0xf2,0x73,0xd9};
+        const uint8_t charUuid128_Md[16] = { 0x66, 0x9a, 0x0c, 0x20, 0x00, 0x08,
+        									 0x96, 0x9e, 0xe2, 0x11, 0x9e, 0xb1,
+											 0xf3, 0x38, 0x17, 0x00 };
         
-        Osal_MemCpy(&UUID_Tx.UUID_16, charUuid128_TX, 16);
-        aci_gatt_disc_char_by_uuid(connection_handle, 0x0001, 0xFFFF,UUID_TYPE_128,&UUID_Tx);
-        APP_FLAG_SET(START_READ_TX_CHAR_HANDLE);
+        Osal_MemCpy(&UUID_Md.UUID_16, charUuid128_Md, 16);
+        aci_gatt_disc_char_by_uuid(slave_connection_handle, 0x0001, 0xFFFF,UUID_TYPE_128,&UUID_Md);
+        APP_FLAG_SET(START_READ_MD_CHAR_HANDLE);
       }
     }
     /* Start RX handle Characteristic discovery if not yet done */
-    else if (APP_FLAG(CONNECTED) && !APP_FLAG(END_READ_RX_CHAR_HANDLE)) {
+    else if (APP_FLAG(CONNECTED_TO_SLAVE) && !APP_FLAG(END_READ_RX_CHAR_HANDLE)) {
       /* Discovery RX characteristic handle by UUID 128 bits */
       if (!APP_FLAG(START_READ_RX_CHAR_HANDLE)) {
         /* Discovery RX characteristic handle by UUID 128 bits */
         const uint8_t charUuid128_RX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe2,0xf2,0x73,0xd9};
         
         Osal_MemCpy(&UUID_Rx.UUID_16, charUuid128_RX, 16);
-        aci_gatt_disc_char_by_uuid(connection_handle, 0x0001, 0xFFFF,UUID_TYPE_128,&UUID_Rx);
+        aci_gatt_disc_char_by_uuid(slave_connection_handle, 0x0001, 0xFFFF,UUID_TYPE_128,&UUID_Rx);
         APP_FLAG_SET(START_READ_RX_CHAR_HANDLE);
       }
     }
       
-    if(APP_FLAG(CONNECTED) && APP_FLAG(END_READ_TX_CHAR_HANDLE) && APP_FLAG(END_READ_RX_CHAR_HANDLE) && !APP_FLAG(NOTIFICATIONS_ENABLED)) {
+    if(APP_FLAG(CONNECTED_TO_SLAVE) && APP_FLAG(END_READ_MD_CHAR_HANDLE) && APP_FLAG(END_READ_RX_CHAR_HANDLE) && !APP_FLAG(NOTIFICATIONS_ENABLED)) {
       uint8_t client_char_conf_data[] = {0x01, 0x00}; // Enable notifications
       struct timer t;
       Timer_Set(&t, CLOCK_SECOND*10);
-          
-      while(aci_gatt_write_char_desc(connection_handle, tx_handle+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED) { 
+
+      //Register to be notifies on the blind homey's motion detector characteristic
+      while(aci_gatt_write_char_desc(slave_connection_handle, md_handle+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED) {
         // Radio is busy.
         if(Timer_Expired(&t)) break;
       }
@@ -497,6 +550,7 @@ void aci_gap_proc_complete_event(uint8_t Procedure_Code,
                                  uint8_t Data_Length,
                                  uint8_t Data[])
 {
+  PRINTF("aci_gap_proc_complete_event()\n");
   if (Procedure_Code == GAP_GENERAL_DISCOVERY_PROC) { 
     /* gap procedure complete has been raised as consequence of a GAP 
        terminate procedure done after a device found event during the discovery procedure */
@@ -535,20 +589,33 @@ void hci_le_connection_complete_event(uint8_t Status,
                                       uint8_t Master_Clock_Accuracy)
 
 { 
-  /* Set the exit state for the Connection state machine: APP_FLAG_CLEAR(SET_CONNECTABLE); */
-  APP_FLAG_CLEAR(SET_CONNECTABLE); 
+
   discovery.check_disc_proc_timer = FALSE;
   discovery.check_disc_mode_timer = FALSE;
   discovery.startTime = 0; 
   
-  connection_handle = Connection_Handle;
+  if (Role == MASTER_ROLE)
+  {
+	  slave_connection_handle = Connection_Handle;
+	  APP_FLAG_SET(CONNECTED_TO_SLAVE);
+  }
+  else
+  {
+	  hub_connection_handle = Connection_Handle;
+	  APP_FLAG_SET(CONNECTED_TO_HUB);
+  }
   
-  APP_FLAG_SET(CONNECTED); 
+
   discovery.device_state = INIT;
   
   /* store device role */
   device_role = Role;
-  
+
+  /* Set the exit state for the Connection state machine: APP_FLAG_CLEAR(SET_CONNECTABLE); */
+  if (APP_FLAG(CONNECTED_TO_SLAVE) && APP_FLAG(CONNECTED_TO_HUB)) APP_FLAG_CLEAR(SET_CONNECTABLE);
+
+  PRINTF("hci_le_connection_complete_event() Role=%d\n", device_role);
+
 }/* end hci_le_connection_complete_event() */
 
 /*******************************************************************************
@@ -562,13 +629,22 @@ void hci_disconnection_complete_event(uint8_t Status,
                                       uint16_t Connection_Handle,
                                       uint8_t Reason)
 {
-  APP_FLAG_CLEAR(CONNECTED);
+
+  if (Connection_Handle == slave_connection_handle)
+  {
+	  APP_FLAG_CLEAR(CONNECTED_TO_SLAVE);
+  }
+  else if (Connection_Handle == hub_connection_handle)
+  {
+	  APP_FLAG_CLEAR(CONNECTED_TO_HUB);
+  }
+
   /* Make the device connectable again. */
   APP_FLAG_SET(SET_CONNECTABLE);
   APP_FLAG_CLEAR(NOTIFICATIONS_ENABLED);
   
-  APP_FLAG_CLEAR(START_READ_TX_CHAR_HANDLE);
-  APP_FLAG_CLEAR(END_READ_TX_CHAR_HANDLE);
+  APP_FLAG_CLEAR(START_READ_MD_CHAR_HANDLE);
+  APP_FLAG_CLEAR(END_READ_MD_CHAR_HANDLE);
   APP_FLAG_CLEAR(START_READ_RX_CHAR_HANDLE); 
   APP_FLAG_CLEAR(END_READ_RX_CHAR_HANDLE); 
   APP_FLAG_CLEAR(TX_BUFFER_FULL);
@@ -587,7 +663,9 @@ void hci_disconnection_complete_event(uint8_t Status,
 void hci_le_advertising_report_event(uint8_t Num_Reports,
                                      Advertising_Report_t Advertising_Report[])
 {
-  /* Advertising_Report contains all the expected parameters */
+	// Discovered devices are each returned to this event
+  //PRINTF("hci_le_advertising_report_event()\n");
+	/* Advertising_Report contains all the expected parameters */
   uint8_t evt_type = Advertising_Report[0].Event_Type ;
   uint8_t data_length = Advertising_Report[0].Length_Data;
   uint8_t bdaddr_type = Advertising_Report[0].Address_Type;
@@ -595,10 +673,10 @@ void hci_le_advertising_report_event(uint8_t Num_Reports,
 
   Osal_MemCpy(bdaddr, Advertising_Report[0].Address,6);
       
-  /* BLE New Chat device not yet found: check current device found */
+  /* BLE Vent device not yet found: check current device found */
   if (!(discovery.is_device_found)) { 
-    /* BLE New Chat device not yet found: check current device found */
-    if ((evt_type == ADV_IND) && Find_DeviceName(data_length, Advertising_Report[0].Data)) {
+    /* BLE Vent device not yet found: check current device found */
+    if ((evt_type == ADV_IND) && Check_DeviceName(data_length, Advertising_Report[0].Data)) {
       discovery.is_device_found = TRUE; 
       discovery.do_connect = TRUE;  
       discovery.check_disc_proc_timer = FALSE;
@@ -640,9 +718,10 @@ void aci_gatt_notification_event(uint16_t Connection_Handle,
                                  uint8_t Attribute_Value_Length,
                                  uint8_t Attribute_Value[])
 { 
-  if(Attribute_Handle == tx_handle+1) {
-    for(volatile uint8_t i = 0; i < Attribute_Value_Length; i++)
-    	printf("%c", Attribute_Value[i]);
+  PRINTF("aci_gatt_notification_event()\n");
+  if(Attribute_Handle == md_handle+1) {
+    //for(volatile uint8_t i = 0; i < Attribute_Value_Length; i++)
+    printf("%02X\n", Attribute_Value[0]);
   }
 } /* end aci_gatt_notification_event() */
 
@@ -659,9 +738,9 @@ void aci_gatt_disc_read_char_by_uuid_resp_event(uint16_t Connection_Handle,
                                                 uint8_t Attribute_Value[])
 {
   printf("aci_gatt_disc_read_char_by_uuid_resp_event, Connection Handle: 0x%04X\n", Connection_Handle);
-  if (APP_FLAG(START_READ_TX_CHAR_HANDLE) && !APP_FLAG(END_READ_TX_CHAR_HANDLE)) {
-    tx_handle = Attribute_Handle; 
-    printf("TX Char Handle 0x%04X\n", tx_handle);
+  if (APP_FLAG(START_READ_MD_CHAR_HANDLE) && !APP_FLAG(END_READ_MD_CHAR_HANDLE)) {
+    md_handle = Attribute_Handle;
+    printf("MD Char Handle 0x%04X\n", md_handle);
   } else if (APP_FLAG(START_READ_RX_CHAR_HANDLE) && !APP_FLAG(END_READ_RX_CHAR_HANDLE)) {
     rx_handle = Attribute_Handle;
     printf("RX Char Handle 0x%04X\n", rx_handle);
@@ -678,8 +757,9 @@ void aci_gatt_disc_read_char_by_uuid_resp_event(uint16_t Connection_Handle,
 void aci_gatt_proc_complete_event(uint16_t Connection_Handle,
                                   uint8_t Error_Code)
 { 
-  if (APP_FLAG(START_READ_TX_CHAR_HANDLE) && !APP_FLAG(END_READ_TX_CHAR_HANDLE)) {
-    APP_FLAG_SET(END_READ_TX_CHAR_HANDLE);
+  PRINTF("aci_gatt_proc_complete_event()\n");
+  if (APP_FLAG(START_READ_MD_CHAR_HANDLE) && !APP_FLAG(END_READ_MD_CHAR_HANDLE)) {
+    APP_FLAG_SET(END_READ_MD_CHAR_HANDLE);
   } else if (APP_FLAG(START_READ_RX_CHAR_HANDLE) && !APP_FLAG(END_READ_RX_CHAR_HANDLE)) {
     APP_FLAG_SET(END_READ_RX_CHAR_HANDLE);
   }
@@ -697,3 +777,10 @@ void aci_gatt_tx_pool_available_event(uint16_t Connection_Handle,
 {      
   APP_FLAG_CLEAR(TX_BUFFER_FULL);
 } /* end aci_gatt_tx_pool_available_event() */
+
+void aci_hal_scan_req_report_event(uint8_t RSSI,
+                                   uint8_t Peer_Address_Type,
+                                   uint8_t Peer_Address[6])
+{
+	PRINTF("aci_hal_scan_req_report_event()\n");
+}

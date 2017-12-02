@@ -46,12 +46,14 @@
   */ 
 
 extern uint16_t ServHandle,
+				MotionServHandle,
+				TemperatureServHandle,
 				TemperatureCharHandle,
 				HumidityCharHandle,
+				MotionDetectedCharHandle,
 				BlindCurrPosCharHandle,
 				BlindTargPosCharHandle,
-				BlindPosStateCharHandle,
-				MotionDetectedCharHandle;
+				BlindPosStateCharHandle;
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
@@ -129,9 +131,9 @@ void GPIO_Handler(void)
 		if( Lil_MotionDetectorGetState((uint32_t)0x00004000) == RESET ) {
 			//Motion Detector Output went low
 			MotionDetectedVal = MOTION_OFF;
-			PRINTF("MOTION_OFF\r\n");
+			PRINTF("MOTION_OFF %02X\r\n", MotionDetectedVal);
 			Timer_Set(&t, CLOCK_SECOND*10);
-			while(aci_gatt_update_char_value(ServHandle,MotionDetectedCharHandle,0,1,&MotionDetectedVal)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
+			while(aci_gatt_update_char_value(MotionServHandle,MotionDetectedCharHandle,0,1,&MotionDetectedVal)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
 				APP_FLAG_SET(TX_BUFFER_FULL);
 				while(APP_FLAG(TX_BUFFER_FULL)) {
 					BTLE_StackTick();
@@ -144,9 +146,9 @@ void GPIO_Handler(void)
 		else {
 			//Motion Detected
 			MotionDetectedVal = MOTION_ON;
-			PRINTF("MOTION_ON\r\n");
+			PRINTF("MOTION_ON %02X\r\n", MotionDetectedVal);
 			Timer_Set(&t, CLOCK_SECOND*10);
-			while(aci_gatt_update_char_value(ServHandle,MotionDetectedCharHandle,0,1,&MotionDetectedVal)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
+			while(aci_gatt_update_char_value(MotionServHandle,MotionDetectedCharHandle,0,1,&MotionDetectedVal)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
 				APP_FLAG_SET(TX_BUFFER_FULL);
 				while(APP_FLAG(TX_BUFFER_FULL)) {
 					BTLE_StackTick();
