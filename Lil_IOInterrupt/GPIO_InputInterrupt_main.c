@@ -1,10 +1,10 @@
 
 /******************** (C) COPYRIGHT 2015 STMicroelectronics ********************
-* File Name          : GPIO/IOToggle/main.c 
+* File Name          : GPIO/InputInterrupt/main.c 
 * Author             : RF Application Team
 * Version            : V1.0.0
 * Date               : September-2015
-* Description        : Code demostrating the GPIO functionality
+* Description        : Code demostrating the GPIO interrupt functionality
 ********************************************************************************
 * THE PRESENT FIRMWARE WHICH IS FOR GUIDANCE ONLY AIMS AT PROVIDING CUSTOMERS
 * WITH CODING INFORMATION REGARDING THEIR PRODUCTS IN ORDER FOR THEM TO SAVE TIME.
@@ -19,6 +19,7 @@
 #include "BlueNRG_x_device.h"
 #include "BlueNRG1_conf.h"
 #include "SDK_EVAL_Config.h"
+#include "Lil_MotionDetector.h"
 
 /** @addtogroup BlueNRG1_StdPeriph_Examples
   * @{
@@ -36,11 +37,7 @@
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
-volatile uint32_t lSystickCounter=0;
-
 /* Private function prototypes -----------------------------------------------*/
-void SdkDelayMs(volatile uint32_t lTimeMs);
-
 /* Private functions ---------------------------------------------------------*/
 
 /**
@@ -56,57 +53,24 @@ int main(void)
   /* Identify BlueNRG1 platform */
   SdkEvalIdentification();
   
+  /* Reset GPIOs to default */
+  GPIO_DeInit();
+
   /* LEDS initialization */
- // SdkEvalLedInit(LED1);
-  //SdkEvalLedInit(LED2);
-  //SdkEvalLedInit(LED3);
-  //GPIO_DeInit();
-
-  /*GPIO_InitType GPIO_InitStructure;
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_8;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Output;
-  GPIO_InitStructure.GPIO_Pull = DISABLE;
-  GPIO_InitStructure.GPIO_HighPwr = DISABLE;
-  GPIO_Init(&GPIO_InitStructure);*/
-
-  GPIO_InitOutputPinx(GPIO_Pin_8);
-  
-  /* Configure SysTick to generate interrupt */
-  //SysTick_Config(SYST_CLOCK/1000 - 1);
+  SdkEvalLedInit(LED1);
+  SdkEvalLedInit(LED2);
+    
+  /* MotionDetector initialization */
+  Lil_MotionDetectorInit(MOTION_DETECTOR_PIN);
+  Lil_MotionDetectorIrq(MOTION_DETECTOR_PIN, IRQ_ON_BOTH_EDGE);
+  Lil_MotionDetectorInit(GPIO_Pin_13);
+  Lil_MotionDetectorIrq(GPIO_Pin_13, IRQ_ON_BOTH_EDGE);
   
   /* Infinite loop */
-  while(1) {
-    //SdkEvalLedToggle(LED1);
-	GPIO_ToggleBits(GPIO_Pin_8);
-    SdkDelayMs(250);
-    //SdkEvalLedToggle(LED2);
-    //SdkDelayMs(250);
-    //SdkEvalLedToggle(LED3);
-    //SdkDelayMs(250);
-  }
+  while(1);
 }
 
 
-/**
-* @brief  Delay function
-* @param  Delay in ms
-* @retval None
-*/
-void SdkDelayMs(volatile uint32_t lTimeMs)
-{
-  uint32_t nWaitPeriod = ~lSystickCounter;
-  
-  if(nWaitPeriod<lTimeMs)
-  {
-    while( lSystickCounter != 0xFFFFFFFF);
-    nWaitPeriod = lTimeMs-nWaitPeriod;
-  }
-  else
-    nWaitPeriod = lTimeMs+ ~nWaitPeriod;
-  
-  while( lSystickCounter != nWaitPeriod ) ;
-
-}
 
 #ifdef  USE_FULL_ASSERT
 
