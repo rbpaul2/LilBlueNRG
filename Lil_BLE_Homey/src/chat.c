@@ -73,13 +73,24 @@ static discoveryContext_t discovery;
 volatile int app_flags = SET_CONNECTABLE;
 volatile uint16_t hub_connection_handle = 0;
 volatile uint16_t slave_connection_handle = 0;
-extern uint16_t ServHandle,
+extern uint16_t BlindServHandle,
+				MotionServHandle,
+				TemperatureServHandle,
+				HumidityServHandle,
+				ThermostatServHandle,
 				TemperatureCharHandle,
 				HumidityCharHandle,
+				MotionDetectedCharHandle,
 				BlindCurrPosCharHandle,
 				BlindTargPosCharHandle,
 				BlindPosStateCharHandle,
-				MotionDetectedCharHandle;
+				CurrentTempCharHandle,
+				TargetTempCharHandle,
+				CurrentHCStateCharHandle,
+				TargetHCStateCharHandle,
+				TempUnitsCharHandle,
+				CoolingThresholdCharHandle,
+				HeatingThresholdCharHandle;
 
 /* UUIDs */
 UUID_t UUID_Md;
@@ -130,7 +141,7 @@ void Process_InputData(uint8_t* data_buffer, uint16_t Nb_bytes)
           Timer_Set(&t, CLOCK_SECOND*10);
             
           if (device_role == SLAVE_ROLE) {
-            while(aci_gatt_update_char_value(ServHandle,TemperatureCharHandle,0,len,(uint8_t *)cmd+j)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
+            while(aci_gatt_update_char_value(TemperatureServHandle,TemperatureCharHandle,0,len,(uint8_t *)cmd+j)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
               APP_FLAG_SET(TX_BUFFER_FULL);
               while(APP_FLAG(TX_BUFFER_FULL)) {
                 BTLE_StackTick();

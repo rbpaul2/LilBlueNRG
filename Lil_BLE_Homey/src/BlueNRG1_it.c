@@ -45,15 +45,24 @@
   * @{
   */ 
 
-extern uint16_t ServHandle,
+extern uint16_t BlindServHandle,
 				MotionServHandle,
 				TemperatureServHandle,
+				HumidityServHandle,
+				ThermostatServHandle,
 				TemperatureCharHandle,
 				HumidityCharHandle,
 				MotionDetectedCharHandle,
 				BlindCurrPosCharHandle,
 				BlindTargPosCharHandle,
-				BlindPosStateCharHandle;
+				BlindPosStateCharHandle,
+				CurrentTempCharHandle,
+				TargetTempCharHandle,
+				CurrentHCStateCharHandle,
+				TargetHCStateCharHandle,
+				TempUnitsCharHandle,
+				CoolingThresholdCharHandle,
+				HeatingThresholdCharHandle;
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
