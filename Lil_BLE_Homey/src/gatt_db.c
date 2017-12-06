@@ -260,7 +260,11 @@ void Update_Characteristic_Val( uint16_t Service_Handle,
 	while(aci_gatt_update_char_value(Service_Handle, Char_Handle, Val_Offset, Char_Value_Length, Char_Value)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
 		APP_FLAG_SET(TX_BUFFER_FULL);
 		while(APP_FLAG(TX_BUFFER_FULL)) {
+			NVIC_DisableIRQ(UART_IRQn);
+			NVIC_DisableIRQ(GPIO_IRQn);
 			BTLE_StackTick();
+			NVIC_EnableIRQ(UART_IRQn);
+			NVIC_EnableIRQ(GPIO_IRQn);
 			// Radio is busy (buffer full).
 			if(Timer_Expired(&t))
 				break;

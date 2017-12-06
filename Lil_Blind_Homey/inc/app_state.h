@@ -52,6 +52,7 @@ extern volatile int app_flags;
 #define SET_CONNECTABLE           0x0100
 #define CONNECTED			      0x0200
 #define NOTIFICATIONS_ENABLED     0x0400
+#define POLLING					  0x0800
 
 
 /* Added flags for handling TX, RX characteristics discovery */

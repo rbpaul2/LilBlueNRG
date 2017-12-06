@@ -51,7 +51,9 @@
 #endif
 
 /* Private variables ---------------------------------------------------------*/
+volatile uint32_t lSystickCounter=0;
 /* Private function prototypes -----------------------------------------------*/
+void SdkDelayMs(volatile uint32_t lTimeMs);
 /* Private functions ---------------------------------------------------------*/
 
 /*******************************************************************************
@@ -112,15 +114,37 @@ int main(void)
   while(1) {
     /* Disable UART IRQ to avoid calling BLE stack functions while BTLE_StackTick() is running. */
     NVIC_DisableIRQ(UART_IRQn);
-    
+    NVIC_DisableIRQ(GPIO_IRQn);
     /* BlueNRG-1 stack tick */
     BTLE_StackTick();
     NVIC_EnableIRQ(UART_IRQn);
-
+    NVIC_EnableIRQ(GPIO_IRQn);
     /* Application tick */
     APP_Tick();
   }
 }
+
+/**
+* @brief  Delay function
+* @param  Delay in ms
+* @retval None
+*/
+void SdkDelayMs(volatile uint32_t lTimeMs)
+{
+  uint32_t nWaitPeriod = ~lSystickCounter;
+
+  if(nWaitPeriod<lTimeMs)
+  {
+    while( lSystickCounter != 0xFFFFFFFF);
+    nWaitPeriod = lTimeMs-nWaitPeriod;
+  }
+  else
+    nWaitPeriod = lTimeMs+ ~nWaitPeriod;
+
+  while( lSystickCounter != nWaitPeriod ) ;
+
+}
+
 
 #ifdef USE_FULL_ASSERT
 /*******************************************************************************

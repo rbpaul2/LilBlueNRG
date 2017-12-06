@@ -64,6 +64,7 @@ extern uint16_t BlindServHandle,
 				CoolingThresholdCharHandle,
 				HeatingThresholdCharHandle;
 
+extern volatile uint32_t lSystickCounter;
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 #ifndef DEBUG
@@ -126,6 +127,7 @@ void SVC_Handler(void)
 void SysTick_Handler(void)
 {
   SysCount_Handler();
+  lSystickCounter++;
 }
 
 void GPIO_Handler(void)
@@ -145,7 +147,11 @@ void GPIO_Handler(void)
 			while(aci_gatt_update_char_value(MotionServHandle,MotionDetectedCharHandle,0,1,&MotionDetectedVal)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
 				APP_FLAG_SET(TX_BUFFER_FULL);
 				while(APP_FLAG(TX_BUFFER_FULL)) {
+					NVIC_DisableIRQ(UART_IRQn);
+				    NVIC_DisableIRQ(GPIO_IRQn);
 					BTLE_StackTick();
+					NVIC_EnableIRQ(UART_IRQn);
+					NVIC_EnableIRQ(GPIO_IRQn);
 					// Radio is busy (buffer full).
 					if(Timer_Expired(&t))
 						break;
@@ -160,7 +166,11 @@ void GPIO_Handler(void)
 			while(aci_gatt_update_char_value(MotionServHandle,MotionDetectedCharHandle,0,1,&MotionDetectedVal)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
 				APP_FLAG_SET(TX_BUFFER_FULL);
 				while(APP_FLAG(TX_BUFFER_FULL)) {
+					NVIC_DisableIRQ(UART_IRQn);
+					NVIC_DisableIRQ(GPIO_IRQn);
 					BTLE_StackTick();
+					NVIC_EnableIRQ(UART_IRQn);
+					NVIC_EnableIRQ(GPIO_IRQn);
 					// Radio is busy (buffer full).
 					if(Timer_Expired(&t))
 						break;
@@ -168,18 +178,6 @@ void GPIO_Handler(void)
 			}
 		}
 
-	}
-
-	/* If GPIO Interrupt Pin 13 */
-	else if ( GPIO_GetITPendingBit(GPIO_Pin_13) == SET ) {
-		GPIO_ClearITPendingBit(GPIO_Pin_13);
-
-		if( GPIO_ReadBit(GPIO_Pin_13) == RESET ) {
-			SdkEvalLedOff(LED2);
-		}
-		else {
-			SdkEvalLedOn(LED2);
-		}
 	}
 
 	NVIC_EnableIRQ(UART_IRQn);

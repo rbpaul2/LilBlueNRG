@@ -70,7 +70,7 @@ typedef struct discoveryContext_s {
 
 /* Private variables ---------------------------------------------------------*/
 static discoveryContext_t discovery;
-volatile int app_flags = SET_CONNECTABLE;
+volatile long int app_flags = SET_CONNECTABLE;
 volatile uint16_t hub_connection_handle = 0;
 volatile uint16_t slave_connection_handle = 0;
 extern uint16_t BlindServHandle,
@@ -91,12 +91,14 @@ extern uint16_t BlindServHandle,
 				TempUnitsCharHandle,
 				CoolingThresholdCharHandle,
 				HeatingThresholdCharHandle;
+tBleStatus bret;
 
+volatile int notify_count[3] = {0,0,0};
 /* UUIDs */
-UUID_t UUID_Md;
-UUID_t UUID_Rx; //Used when discovering characteristics on other BLUENRG, when this is master role
+//Used when discovering characteristics on other BLUENRG, when this is master role
+UUID_t UUID_Md, UUID_Tm, UUID_Hm, UUID_Bc, UUID_Bt;
+uint16_t md_handle, tm_handle, hm_handle, bc_handle, bt_handle;
 
-uint16_t md_handle, rx_handle;
 uint16_t discovery_time = 0; 
 uint8_t device_role = 0xFF;
 uint8_t counter = 0;
@@ -119,54 +121,55 @@ static char cmd[CMD_BUFF_SIZE];
 *******************************************************************************/
 void Process_InputData(uint8_t* data_buffer, uint16_t Nb_bytes)
 {
-  static uint16_t end = 0;
-  uint8_t i;
-    
-  for (i = 0; i < Nb_bytes; i++) {
-    if(end >= CMD_BUFF_SIZE-1)
-      end = 0;
-        
-    cmd[end] = data_buffer[i];
-    SdkEvalComIOSendData(data_buffer[i]);
-    end++;
-        
-    if(cmd[end-1] == '\n') {
-      if(end != 1) {
-        int j = 0;
-        cmd[end] = '\0';
-                    
-        while(j < end) {
-          uint32_t len = MIN(20, end - j);
-          struct timer t;
-          Timer_Set(&t, CLOCK_SECOND*10);
-            
-          if (device_role == SLAVE_ROLE) {
-            while(aci_gatt_update_char_value(TemperatureServHandle,TemperatureCharHandle,0,len,(uint8_t *)cmd+j)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
-              APP_FLAG_SET(TX_BUFFER_FULL);
-              while(APP_FLAG(TX_BUFFER_FULL)) {
-                BTLE_StackTick();
-                // Radio is busy (buffer full).
-                if(Timer_Expired(&t))
-                  break;
-              }  
-            }     
-          } else if (device_role == MASTER_ROLE) {
-            while(aci_gatt_write_without_resp(slave_connection_handle, rx_handle+1, len, (uint8_t *)cmd+j)==BLE_STATUS_NOT_ALLOWED) {
-              BTLE_StackTick();
-              // Radio is busy (buffer full).
-              if(Timer_Expired(&t))
-                break;
-            }    
-          } else {
-            break;
-          }
-          j += len;            
-        }/* while(j < end)*/
-      }
-      end = 0;
-    }
-  }
+//  static uint16_t end = 0;
+//  uint8_t i;
+//
+//  for (i = 0; i < Nb_bytes; i++) {
+//    if(end >= CMD_BUFF_SIZE-1)
+//      end = 0;
+//
+//    cmd[end] = data_buffer[i];
+//    SdkEvalComIOSendData(data_buffer[i]);
+//    end++;
+//
+//    if(cmd[end-1] == '\n') {
+//      if(end != 1) {
+//        int j = 0;
+//        cmd[end] = '\0';
+//
+//        while(j < end) {
+//          uint32_t len = MIN(20, end - j);
+//          struct timer t;
+//          Timer_Set(&t, CLOCK_SECOND*10);
+//
+//          if (device_role == SLAVE_ROLE) {
+//            while(aci_gatt_update_char_value(TemperatureServHandle,TemperatureCharHandle,0,len,(uint8_t *)cmd+j)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
+//              APP_FLAG_SET(TX_BUFFER_FULL);
+//              while(APP_FLAG(TX_BUFFER_FULL)) {
+//                BTLE_StackTick();
+//                // Radio is busy (buffer full).
+//                if(Timer_Expired(&t))
+//                  break;
+//              }
+//            }
+//          } else if (device_role == MASTER_ROLE) {
+//            while(aci_gatt_write_without_resp(slave_connection_handle, rx_handle+1, len, (uint8_t *)cmd+j)==BLE_STATUS_NOT_ALLOWED) {
+//              BTLE_StackTick();
+//              // Radio is busy (buffer full).
+//              if(Timer_Expired(&t))
+//                break;
+//            }
+//          } else {
+//            break;
+//          }
+//          j += len;
+//        }/* while(j < end)*/
+//      }
+//      end = 0;
+//    }
+//  }
 }
+
 
 /*******************************************************************************
 * Function Name  : Reset_DiscoveryContext.
@@ -183,7 +186,7 @@ void Reset_DiscoveryContext(void)
   discovery.startTime = 0;
   discovery.device_state = INIT;
   Osal_MemSet(&discovery.device_found_address[0], 0, 6);
-  device_role = 0xFF; 
+  if (!APP_FLAG(CONNECTED_TO_SLAVE) && !APP_FLAG(CONNECTED_TO_HUB)) device_role = 0xFF;
 }
 
 /*******************************************************************************
@@ -342,8 +345,11 @@ void Connection_StateMachine(void)
       Reset_DiscoveryContext();
       if (APP_FLAG(CONNECTED_TO_SLAVE))
       {
-    	  PRINTF("Connected to Blinds! Entering Discovery Mode... \n");
-    	  discovery.device_state = ENTER_DISCOVERY_MODE;
+    	  if (!APP_FLAG(CONNECTED_TO_HUB))
+    	  {
+    		  PRINTF("Entering Discovery Mode... \n");
+    		  discovery.device_state = ENTER_DISCOVERY_MODE;
+    	  }
       }
       else
       {
@@ -505,7 +511,7 @@ void APP_Tick(void)
   }
         
   if (device_role == MASTER_ROLE) {
-    /* Start TX handle Characteristic discovery if not yet done */
+    /* Start Motion Detector handle Characteristic discovery if not yet done */
     if (APP_FLAG(CONNECTED_TO_SLAVE) && !APP_FLAG(END_READ_MD_CHAR_HANDLE)) {
       if (!APP_FLAG(START_READ_MD_CHAR_HANDLE)) {
         /* Discovery TX characteristic handle by UUID 128 bits */
@@ -518,32 +524,147 @@ void APP_Tick(void)
         APP_FLAG_SET(START_READ_MD_CHAR_HANDLE);
       }
     }
-    /* Start RX handle Characteristic discovery if not yet done */
-    else if (APP_FLAG(CONNECTED_TO_SLAVE) && !APP_FLAG(END_READ_RX_CHAR_HANDLE)) {
-      /* Discovery RX characteristic handle by UUID 128 bits */
-      if (!APP_FLAG(START_READ_RX_CHAR_HANDLE)) {
-        /* Discovery RX characteristic handle by UUID 128 bits */
-        const uint8_t charUuid128_RX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe2,0xf2,0x73,0xd9};
+    /* Start Temperature handle Characteristic discovery if not yet done */
+    else if (APP_FLAG(CONNECTED_TO_SLAVE) && !APP_FLAG(END_READ_TM_CHAR_HANDLE)) {
+      /* Discovery Temperature characteristic handle by UUID 128 bits */
+      if (!APP_FLAG(START_READ_TM_CHAR_HANDLE)) {
+        /* Discovery Temperature characteristic handle by UUID 128 bits */
+        const uint8_t charUuid128_Tm[16] = { 0x66, 0x9a, 0x0c, 0x20, 0x00, 0x08,
+	  	  	  	  	  	  	  	  	  	  	 0x96, 0x9e, 0xe2, 0x11, 0x9e, 0xb1,
+											 0xf1, 0x38, 0x17, 0x00 };
         
-        Osal_MemCpy(&UUID_Rx.UUID_16, charUuid128_RX, 16);
-        aci_gatt_disc_char_by_uuid(slave_connection_handle, 0x0001, 0xFFFF,UUID_TYPE_128,&UUID_Rx);
-        APP_FLAG_SET(START_READ_RX_CHAR_HANDLE);
+        Osal_MemCpy(&UUID_Tm.UUID_16, charUuid128_Tm, 16);
+        aci_gatt_disc_char_by_uuid(slave_connection_handle, 0x0001, 0xFFFF,UUID_TYPE_128,&UUID_Tm);
+        APP_FLAG_SET(START_READ_TM_CHAR_HANDLE);
       }
     }
+    /* Start Humidity handle Characteristic discovery if not yet done */
+    else if (APP_FLAG(CONNECTED_TO_SLAVE) && !APP_FLAG(END_READ_HM_CHAR_HANDLE)) {
+    	/* Discovery Humidity characteristic handle by UUID 128 bits */
+    	if (!APP_FLAG(START_READ_HM_CHAR_HANDLE)) {
+    		/* Discovery Humidity characteristic handle by UUID 128 bits */
+    		const uint8_t charUuid128_Hm[16] = { 0x66, 0x9a, 0x0c, 0x20, 0x00, 0x08,
+	  	  	  	  	  	  	  	  	  	  	  	 0x96, 0x9e, 0xe2, 0x11, 0x9e, 0xb1,
+							  	  	  	  	  	 0xf2, 0x38, 0x17, 0x00 };
+
+    		Osal_MemCpy(&UUID_Hm.UUID_16, charUuid128_Hm, 16);
+    		aci_gatt_disc_char_by_uuid(slave_connection_handle, 0x0001, 0xFFFF,UUID_TYPE_128,&UUID_Hm);
+    		APP_FLAG_SET(START_READ_HM_CHAR_HANDLE);
+    	}
+    }
+    /* Start BlindCurrent handle Characteristic discovery if not yet done */
+    else if (APP_FLAG(CONNECTED_TO_SLAVE) && !APP_FLAG(END_READ_BC_CHAR_HANDLE)) {
+    	/* Discovery BlindCurrent characteristic handle by UUID 128 bits */
+    	if (!APP_FLAG(START_READ_BC_CHAR_HANDLE)) {
+    		/* Discovery BlindCurrent characteristic handle by UUID 128 bits */
+    		const uint8_t charUuid128_Bc[16] = { 0x66, 0x9a, 0x0c, 0x20, 0x00, 0x08,
+	  	  	  	  	  	  	  	  	  	  	  	 0x96, 0x9e, 0xe2, 0x11, 0x9e, 0xb1,
+												 0xb1, 0x38, 0x17, 0x11 };
+
+    		Osal_MemCpy(&UUID_Bc.UUID_16, charUuid128_Bc, 16);
+    		aci_gatt_disc_char_by_uuid(slave_connection_handle, 0x0001, 0xFFFF,UUID_TYPE_128,&UUID_Bc);
+    		APP_FLAG_SET(START_READ_BC_CHAR_HANDLE);
+    	}
+    }
+    /* Start BlindTarget handle Characteristic discovery if not yet done */
+    else if (APP_FLAG(CONNECTED_TO_SLAVE) && !APP_FLAG(END_READ_BT_CHAR_HANDLE)) {
+    	/* Discovery BlindTarget characteristic handle by UUID 128 bits */
+    	if (!APP_FLAG(START_READ_BT_CHAR_HANDLE)) {
+    		/* Discovery BlindTarget characteristic handle by UUID 128 bits */
+    		const uint8_t charUuid128_Bt[16] = { 0x66, 0x9a, 0x0c, 0x20, 0x00, 0x08,
+    											 0x96, 0x9e, 0xe2, 0x11, 0x9e, 0xb1,
+												 0xf2, 0x38, 0x17, 0x00 };
+
+    		Osal_MemCpy(&UUID_Bt.UUID_16, charUuid128_Bt, 16);
+    		aci_gatt_disc_char_by_uuid(slave_connection_handle, 0x0001, 0xFFFF,UUID_TYPE_128,&UUID_Bt);
+    		APP_FLAG_SET(START_READ_BT_CHAR_HANDLE);
+    	}
+    }
       
-    if(APP_FLAG(CONNECTED_TO_SLAVE) && APP_FLAG(END_READ_MD_CHAR_HANDLE) && APP_FLAG(END_READ_RX_CHAR_HANDLE) && !APP_FLAG(NOTIFICATIONS_ENABLED)) {
+    if(APP_FLAG(CONNECTED_TO_SLAVE) && APP_FLAG(END_READ_MD_CHAR_HANDLE) &&
+    								   APP_FLAG(END_READ_TM_CHAR_HANDLE) &&
+    								   APP_FLAG(END_READ_HM_CHAR_HANDLE) &&
+    								   APP_FLAG(END_READ_BC_CHAR_HANDLE) &&
+    								   APP_FLAG(END_READ_BT_CHAR_HANDLE) && !APP_FLAG(NOTIFICATIONS_ENABLED)) {
       uint8_t client_char_conf_data[] = {0x01, 0x00}; // Enable notifications
       struct timer t;
       Timer_Set(&t, CLOCK_SECOND*10);
 
-      //Register to be notifies on the blind homey's motion detector characteristic
-      while(aci_gatt_write_char_desc(slave_connection_handle, md_handle+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED) {
-        // Radio is busy.
-        if(Timer_Expired(&t)) break;
+      //Register to be notified on the blind homey's motion detector characteristic
+      if (!APP_FLAG(START_TM_CCD) && !APP_FLAG(END_TM_CCD))
+      {
+		  APP_FLAG_SET(START_TM_CCD);
+		  while(aci_gatt_write_char_desc(slave_connection_handle, tm_handle+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED) {
+			  // Radio is busy.
+			  if(Timer_Expired(&t)) break;
+		  }
       }
+      while(!APP_FLAG(END_TM_CCD))
+      {
+    	  NVIC_DisableIRQ(UART_IRQn);
+		  NVIC_DisableIRQ(GPIO_IRQn);
+		  BTLE_StackTick();
+		  NVIC_EnableIRQ(UART_IRQn);
+		  NVIC_EnableIRQ(GPIO_IRQn);
+      }
+      PRINTF("TM\n");
+
+      Timer_Restart(&t);
+      if (!APP_FLAG(START_MD_CCD) && !APP_FLAG(END_MD_CCD))
+      {
+    	  APP_FLAG_SET(START_MD_CCD);
+    	  while(aci_gatt_write_char_desc(slave_connection_handle, md_handle+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED) {
+			  // Radio is busy.
+			  if(Timer_Expired(&t)) break;
+		  }
+      }
+      while(!APP_FLAG(END_MD_CCD))
+	  {
+		  NVIC_DisableIRQ(UART_IRQn);
+		  NVIC_DisableIRQ(GPIO_IRQn);
+		  BTLE_StackTick();
+		  NVIC_EnableIRQ(UART_IRQn);
+		  NVIC_EnableIRQ(GPIO_IRQn);
+	  }
+      PRINTF("MD\n");
+
+      Timer_Restart(&t);
+      if (!APP_FLAG(START_HM_CCD) && !APP_FLAG(END_HM_CCD))
+	  {
+    	  APP_FLAG_SET(START_HM_CCD);
+    	  while(aci_gatt_write_char_desc(slave_connection_handle, hm_handle+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED) {
+			  // Radio is busy.
+			  if(Timer_Expired(&t)) break;
+		  }
+	  }
+      while(!APP_FLAG(END_HM_CCD))
+	  {
+		  NVIC_DisableIRQ(UART_IRQn);
+		  NVIC_DisableIRQ(GPIO_IRQn);
+		  BTLE_StackTick();
+		  NVIC_EnableIRQ(UART_IRQn);
+		  NVIC_EnableIRQ(GPIO_IRQn);
+	  }
+      PRINTF("HM\n");
+
+      Timer_Restart(&t);
+      while(aci_gatt_write_char_desc(slave_connection_handle, bc_handle+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED) {
+    	  // Radio is busy.
+    	  if(Timer_Expired(&t)) break;
+      }
+      PRINTF("BC\n");
+//      Timer_Restart(&t);
+//      while(aci_gatt_write_char_desc(slave_connection_handle, bt_handle+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED) {
+//    	  // Radio is busy.
+//    	  if(Timer_Expired(&t)) break;
+//      }
+
+      PRINTF("Registered for notifications on blind characteristics\n");
+
       APP_FLAG_SET(NOTIFICATIONS_ENABLED);
     }
-  }/* if (device_role == MASTER_ROLE) */      
+  }/* if (device_role == MASTER_ROLE) */
+
 }
 
 
@@ -609,20 +730,39 @@ void hci_le_connection_complete_event(uint8_t Status,
   {
 	  slave_connection_handle = Connection_Handle;
 	  APP_FLAG_SET(CONNECTED_TO_SLAVE);
+	  if (!APP_FLAG(CONNECTED_TO_HUB))
+	  {
+		  PRINTF("INIT\n");
+		  discovery.device_state = INIT;
+	  }
+	  else
+	  {
+		  discovery.device_state = WAIT_EVENT;
+	  }
   }
-  else
+  else if (Role == SLAVE_ROLE)
   {
 	  hub_connection_handle = Connection_Handle;
 	  APP_FLAG_SET(CONNECTED_TO_HUB);
+	  if (!APP_FLAG(CONNECTED_TO_SLAVE))
+	  {
+	  	  discovery.device_state = INIT;
+	  }
+	  else
+	  {
+	      discovery.device_state = WAIT_EVENT;
+	  }
   }
-  
+  else
+  {
+	  PRINTF("Unknown Role\n");
+  }
 
-  discovery.device_state = INIT;
-  
   /* store device role */
   device_role = Role;
 
   /* Set the exit state for the Connection state machine: APP_FLAG_CLEAR(SET_CONNECTABLE); */
+  //if (APP_FLAG(CONNECTED_TO_SLAVE)) APP_FLAG_CLEAR(SET_CONNECTABLE);
   if (APP_FLAG(CONNECTED_TO_SLAVE) && APP_FLAG(CONNECTED_TO_HUB)) APP_FLAG_CLEAR(SET_CONNECTABLE);
 
   PRINTF("hci_le_connection_complete_event() Role=%d\n", device_role);
@@ -641,26 +781,37 @@ void hci_disconnection_complete_event(uint8_t Status,
                                       uint8_t Reason)
 {
 
-  if (Connection_Handle == slave_connection_handle)
-  {
-	  APP_FLAG_CLEAR(CONNECTED_TO_SLAVE);
-  }
-  else if (Connection_Handle == hub_connection_handle)
-  {
-	  APP_FLAG_CLEAR(CONNECTED_TO_HUB);
-  }
+	if (Connection_Handle == slave_connection_handle)
+	{
+		APP_FLAG_CLEAR(CONNECTED_TO_SLAVE);
 
-  /* Make the device connectable again. */
-  APP_FLAG_SET(SET_CONNECTABLE);
-  APP_FLAG_CLEAR(NOTIFICATIONS_ENABLED);
-  
-  APP_FLAG_CLEAR(START_READ_MD_CHAR_HANDLE);
-  APP_FLAG_CLEAR(END_READ_MD_CHAR_HANDLE);
-  APP_FLAG_CLEAR(START_READ_RX_CHAR_HANDLE); 
-  APP_FLAG_CLEAR(END_READ_RX_CHAR_HANDLE); 
-  APP_FLAG_CLEAR(TX_BUFFER_FULL);
-  
-  Reset_DiscoveryContext();
+		APP_FLAG_CLEAR(NOTIFICATIONS_ENABLED);
+
+		APP_FLAG_CLEAR(START_READ_MD_CHAR_HANDLE);
+		APP_FLAG_CLEAR(END_READ_MD_CHAR_HANDLE);
+		APP_FLAG_CLEAR(START_READ_TM_CHAR_HANDLE);
+		APP_FLAG_CLEAR(END_READ_TM_CHAR_HANDLE);
+		APP_FLAG_CLEAR(START_READ_HM_CHAR_HANDLE);
+		APP_FLAG_CLEAR(END_READ_HM_CHAR_HANDLE);
+		APP_FLAG_CLEAR(START_READ_BC_CHAR_HANDLE);
+		APP_FLAG_CLEAR(END_READ_BC_CHAR_HANDLE);
+		APP_FLAG_CLEAR(START_READ_BT_CHAR_HANDLE);
+		APP_FLAG_CLEAR(END_READ_BT_CHAR_HANDLE);
+		APP_FLAG_CLEAR(TX_BUFFER_FULL);
+	}
+	else if (Connection_Handle == hub_connection_handle)
+	{
+		APP_FLAG_CLEAR(CONNECTED_TO_HUB);
+	}
+
+	/* Make the device connectable again. */
+	APP_FLAG_SET(SET_CONNECTABLE);
+
+	discovery.check_disc_proc_timer = FALSE;
+	discovery.check_disc_mode_timer = FALSE;
+	discovery.is_device_found = FALSE;
+	discovery.do_connect = FALSE;
+	discovery.startTime = 0;
 
 }/* end hci_disconnection_complete_event() */
 
@@ -731,9 +882,25 @@ void aci_gatt_notification_event(uint16_t Connection_Handle,
 { 
   PRINTF("aci_gatt_notification_event()\n");
   if(Attribute_Handle == md_handle+1) {
+	  notify_count[0]++;
     //for(volatile uint8_t i = 0; i < Attribute_Value_Length; i++)
-    printf("%02X\n", Attribute_Value[0]);
+    //printf("[Blinds] Motion Sensor: %02X\n", Attribute_Value[0]);
+    //Update_Characteristic_Val(MotionServHandle, MotionDetectedCharHandle,0,Attribute_Value_Length, Attribute_Value);
   }
+  else if(Attribute_Handle == tm_handle+1) {
+	  notify_count[1]++;
+      //for(volatile uint8_t i = 0; i < Attribute_Value_Length; i++)
+      //printf("[Blinds] Temperature Notification\n");
+      //Update_Characteristic_Val(TemperatureServHandle, TemperatureCharHandle,0,Attribute_Value_Length, Attribute_Value);
+  }
+  else if(Attribute_Handle == hm_handle+1) {
+	  notify_count[2]++;
+      //for(volatile uint8_t i = 0; i < Attribute_Value_Length; i++)
+      //printf("[Blinds] Humidity Notification\n");
+      //Update_Characteristic_Val(HumidityServHandle, HumidityCharHandle,0,Attribute_Value_Length, Attribute_Value);
+  }
+
+  PRINTF("{%02X,%02X,%02X}\n", notify_count[0], notify_count[1], notify_count[2]);
 } /* end aci_gatt_notification_event() */
 
 /*******************************************************************************
@@ -749,12 +916,26 @@ void aci_gatt_disc_read_char_by_uuid_resp_event(uint16_t Connection_Handle,
                                                 uint8_t Attribute_Value[])
 {
   printf("aci_gatt_disc_read_char_by_uuid_resp_event, Connection Handle: 0x%04X\n", Connection_Handle);
-  if (APP_FLAG(START_READ_MD_CHAR_HANDLE) && !APP_FLAG(END_READ_MD_CHAR_HANDLE)) {
-    md_handle = Attribute_Handle;
-    printf("MD Char Handle 0x%04X\n", md_handle);
-  } else if (APP_FLAG(START_READ_RX_CHAR_HANDLE) && !APP_FLAG(END_READ_RX_CHAR_HANDLE)) {
-    rx_handle = Attribute_Handle;
-    printf("RX Char Handle 0x%04X\n", rx_handle);
+  if (APP_FLAG(START_READ_MD_CHAR_HANDLE) && !APP_FLAG(END_READ_MD_CHAR_HANDLE))
+  {
+	  md_handle = Attribute_Handle;
+	  printf("MD Char Handle 0x%04X\n", md_handle);
+  } else if (APP_FLAG(START_READ_TM_CHAR_HANDLE) && !APP_FLAG(END_READ_TM_CHAR_HANDLE))
+  {
+	  tm_handle = Attribute_Handle;
+	  printf("TM Char Handle 0x%04X\n", tm_handle);
+  } else if (APP_FLAG(START_READ_HM_CHAR_HANDLE) && !APP_FLAG(END_READ_HM_CHAR_HANDLE))
+  {
+	  hm_handle = Attribute_Handle;
+	  printf("HM Char Handle 0x%04X\n", hm_handle);
+  } else if (APP_FLAG(START_READ_BC_CHAR_HANDLE) && !APP_FLAG(END_READ_BC_CHAR_HANDLE))
+  {
+	  bc_handle = Attribute_Handle;
+	  printf("BC Char Handle 0x%04X\n", bc_handle);
+  } else if (APP_FLAG(START_READ_BT_CHAR_HANDLE) && !APP_FLAG(END_READ_BT_CHAR_HANDLE))
+  {
+	  bt_handle = Attribute_Handle;
+	  printf("BT Char Handle 0x%04X\n", bt_handle);
   }
 } /* end aci_gatt_disc_read_char_by_uuid_resp_event() */
 
@@ -768,13 +949,43 @@ void aci_gatt_disc_read_char_by_uuid_resp_event(uint16_t Connection_Handle,
 void aci_gatt_proc_complete_event(uint16_t Connection_Handle,
                                   uint8_t Error_Code)
 { 
-  PRINTF("aci_gatt_proc_complete_event()\n");
-  if (APP_FLAG(START_READ_MD_CHAR_HANDLE) && !APP_FLAG(END_READ_MD_CHAR_HANDLE)) {
-    APP_FLAG_SET(END_READ_MD_CHAR_HANDLE);
-  } else if (APP_FLAG(START_READ_RX_CHAR_HANDLE) && !APP_FLAG(END_READ_RX_CHAR_HANDLE)) {
-    APP_FLAG_SET(END_READ_RX_CHAR_HANDLE);
-  }
+	PRINTF("aci_gatt_proc_complete_event()\n");
+	if (APP_FLAG(START_READ_MD_CHAR_HANDLE) && !APP_FLAG(END_READ_MD_CHAR_HANDLE)) {
+		APP_FLAG_SET(END_READ_MD_CHAR_HANDLE);
+	} else if (APP_FLAG(START_READ_TM_CHAR_HANDLE) && !APP_FLAG(END_READ_TM_CHAR_HANDLE)) {
+		APP_FLAG_SET(END_READ_TM_CHAR_HANDLE);
+	} else if (APP_FLAG(START_READ_HM_CHAR_HANDLE) && !APP_FLAG(END_READ_HM_CHAR_HANDLE)) {
+		APP_FLAG_SET(END_READ_HM_CHAR_HANDLE);
+	} else if (APP_FLAG(START_READ_BC_CHAR_HANDLE) && !APP_FLAG(END_READ_BC_CHAR_HANDLE)) {
+		APP_FLAG_SET(END_READ_BC_CHAR_HANDLE);
+	} else if (APP_FLAG(START_READ_BT_CHAR_HANDLE) && !APP_FLAG(END_READ_BT_CHAR_HANDLE)) {
+		APP_FLAG_SET(END_READ_BT_CHAR_HANDLE);
+	}
+
+	if (APP_FLAG(START_TM_CCD) && !APP_FLAG(END_TM_CCD)) APP_FLAG_SET(END_TM_CCD);
+	if (APP_FLAG(START_MD_CCD) && !APP_FLAG(END_MD_CCD)) APP_FLAG_SET(END_MD_CCD);
+	if (APP_FLAG(START_HM_CCD) && !APP_FLAG(END_HM_CCD)) APP_FLAG_SET(END_HM_CCD);
+
 } /* end aci_gatt_proc_complete_event() */
+
+
+//void aci_att_read_resp_event(uint16_t Connection_Handle,
+//                             uint8_t Event_Data_Length,
+//                             uint8_t Attribute_Value[])
+//{
+//	//response to gatt read
+//	if (Connection_Handle == slave_connection_handle)
+//	{
+//		PRINTF("aci_att_read_resp_event()");
+//		PRINTF("Length: %d, Val: ", Event_Data_Length);
+//		for (volatile int i = 0; i < Event_Data_Length; i++)
+//		{
+//			PRINTF("%02X", Attribute_Value[i]);
+//		}
+//
+//	}
+//}
+
 
 /*******************************************************************************
  * Function Name  : aci_gatt_tx_pool_available_event.

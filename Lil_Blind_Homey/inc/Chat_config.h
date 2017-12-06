@@ -19,7 +19,7 @@
 #define NUM_APP_GATT_SERVICES 3
 
 /* Number of attributes requests from the homey app */
-#define NUM_APP_GATT_ATTRIBUTES 30
+#define NUM_APP_GATT_ATTRIBUTES 50
 
 /* Number of links needed for the demo: 1
  * Only 1 the default

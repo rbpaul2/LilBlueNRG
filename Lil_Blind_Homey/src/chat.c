@@ -43,6 +43,7 @@ typedef struct discoveryContext_s {
 #define CMD_BUFF_SIZE 512
 
 #define DISCOVERY_TIMEOUT 3000 /* at least 3 seconds */
+#define POLLING_INTERVAL  10000 //10 seconds
 
 /* Multiple Connection Timings */
 /*
@@ -80,6 +81,13 @@ extern uint16_t ServHandle,
 				BlindPosStateCharHandle,
 				MotionDetectedCharHandle;
 
+int temperature, humidity;
+uint8_t temp_val[8];
+uint64_t tester,tempptr,humidptr;
+uint8_t hum_val[8];
+uint8_t temper[8] = {0x11, 0x11, 0x11, 0x11, 0x22, 0x22, 0x22, 0x22};
+tBleStatus errRet;
+
 /* UUIDs */
 UUID_t UUID_Md;
 UUID_t UUID_Rx; //Used when discovering characteristics on other BLUENRG, when this is master role
@@ -94,6 +102,7 @@ uint8_t hub_name[] = {AD_TYPE_COMPLETE_LOCAL_NAME,'L','i','l','_','H','u','b'};
 
 static char cmd[CMD_BUFF_SIZE];
 
+struct timer pollTimer;
 
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
@@ -129,22 +138,7 @@ void Process_InputData(uint8_t* data_buffer, uint16_t Nb_bytes)
           Timer_Set(&t, CLOCK_SECOND*10);
             
           if (device_role == SLAVE_ROLE) {
-            while(aci_gatt_update_char_value(ServHandle,TemperatureCharHandle,0,len,(uint8_t *)cmd+j)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
-              APP_FLAG_SET(TX_BUFFER_FULL);
-              while(APP_FLAG(TX_BUFFER_FULL)) {
-                BTLE_StackTick();
-                // Radio is busy (buffer full).
-                if(Timer_Expired(&t))
-                  break;
-              }  
-            }     
           } else if (device_role == MASTER_ROLE) {
-            while(aci_gatt_write_without_resp(connection_handle, rx_handle+1, len, (uint8_t *)cmd+j)==BLE_STATUS_NOT_ALLOWED) {
-              BTLE_StackTick();
-              // Radio is busy (buffer full).
-              if(Timer_Expired(&t))
-                break;
-            }    
           } else {
             break;
           }
@@ -458,29 +452,76 @@ void APP_Tick(void)
   if(APP_FLAG(SET_CONNECTABLE)) {
     Connection_StateMachine();
   }
-//  else
-//  {
-//	  if(APP_FLAG(CONNECTED))
-//	  {
-		  /* Blinds Unit is connected to Vent Unit */
-		  uint8_t tmprega[2];
-		  uint8_t tmpregb[2];
-		  double temperature, humidity;
+  else
+  {
+	  if(APP_FLAG(CONNECTED))
+	  {
+		  if (APP_FLAG(POLLING))
+		  {
+			  if (Timer_Expired(&pollTimer))
+			  {
+				  /* Blinds Unit is connected to Vent Unit */
+				  uint8_t tmprega[2];
+				  uint8_t tmpregb[2];
+				  //Read temp/humidity sensor
+				  SdkEvalI2CRead(&tmprega,0x40,0xf5,2); //humidity
+				  humidity = (int)(((tmprega[0]*256 + tmprega[1]) *125.0)/65536.0) - 6;
+				  SdkDelayMs(500);
+				  SdkEvalI2CRead(&tmpregb,0x40,0xf3,2); // temp
+				  temperature = (int)((((tmpregb[0]*256 + tmpregb[1]) *175.72)/65536.0) - 46.85);
+				  PRINTF("Temperature = %d, Humidity = %d\n", temperature, humidity);
 
-		  //Read temp/humidity sensor
-//		  SdkEvalI2CRead(&tmprega,0x40,0xf5,2); //humidity
-//		  temperature = (((tmprega[0]*256 + tmprega[1]) *125)/65536.0) - 6;
-//		  PRINTF("Humidity: %f \n", temperature);
-//		  SdkDelayMs(500);
-//		  SdkEvalI2CRead(&tmpregb,0x40,0xf3,2); // temp
-//		  humidity = (((((tmpregb[0]*256 + tmpregb[1]) *175.72)/65536.0) - 46.85) *1.8) + 32;
-//		  PRINTF("Temperature: %f \n", humidity);
+				  humidity = 20;
+				  temperature = 10;
 
-		  //update characteristic value
-//		  Update_Characteristic_Val(ServHandle,TemperatureCharHandle,0,8, (uint8_t *) &temperature);
-//		  Update_Characteristic_Val(ServHandle,HumidityCharHandle,0,8, (uint8_t *) &humidity);
-//	  }
-//  }
+				  //update characteristic value
+				  //Update_Characteristic_Val(ServHandle,TemperatureCharHandle,0,8, &temperature);
+				  //Update_Characteristic_Val(ServHandle,HumidityCharHandle,0,8, &humidity);
+				  //Update_Characteristic_Val(ServHandle,TemperatureCharHandle,0,8, (uint8_t *) &temperature);
+				  //Update_Characteristic_Val(ServHandle,HumidityCharHandle,0,8, (uint8_t *) &humidity);
+				  struct timer t;
+				  Timer_Set(&t, CLOCK_SECOND*10);
+				  while(aci_gatt_update_char_value(ServHandle, TemperatureCharHandle, 0, 2, &temperature)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
+					  APP_FLAG_SET(TX_BUFFER_FULL);
+					  while(APP_FLAG(TX_BUFFER_FULL)) {
+						  NVIC_DisableIRQ(UART_IRQn);
+						  NVIC_DisableIRQ(GPIO_IRQn);
+						  BTLE_StackTick();
+						  NVIC_EnableIRQ(UART_IRQn);
+						  NVIC_EnableIRQ(GPIO_IRQn);
+						  // Radio is busy (buffer full).
+						  if(Timer_Expired(&t)){
+							  PRINTF("Error! Update Characteristic Timeout\n");
+							  break;
+						  }
+					  }
+				  }
+				 // pointer = (uint8_t *) humidptr;
+
+				  Timer_Reset(&t);
+				  while(aci_gatt_update_char_value(ServHandle, HumidityCharHandle, 0, 2, &humidity)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
+					  APP_FLAG_SET(TX_BUFFER_FULL);
+					  while(APP_FLAG(TX_BUFFER_FULL)) {
+						  NVIC_DisableIRQ(UART_IRQn);
+						  NVIC_DisableIRQ(GPIO_IRQn);
+						  BTLE_StackTick();
+						  NVIC_EnableIRQ(UART_IRQn);
+						  NVIC_EnableIRQ(GPIO_IRQn);
+						  // Radio is busy (buffer full).
+						  if(Timer_Expired(&t)){
+							  PRINTF("Error! Update Characteristic Timeout\n");
+							  break;
+						  }
+					  }
+				  }
+
+
+
+				  Timer_Reset(&pollTimer);
+			  }
+		  }
+	  }
+  }
 }
 
 
@@ -552,6 +593,9 @@ void hci_le_connection_complete_event(uint8_t Status,
 
   /* Set the exit state for the Connection state machine: APP_FLAG_CLEAR(SET_CONNECTABLE); */
   APP_FLAG_CLEAR(SET_CONNECTABLE);
+
+  Timer_Set(&pollTimer, CLOCK_SECOND*10);
+  APP_FLAG_SET(POLLING);
 
   PRINTF("hci_le_connection_complete_event() Role=%d\n", device_role);
 

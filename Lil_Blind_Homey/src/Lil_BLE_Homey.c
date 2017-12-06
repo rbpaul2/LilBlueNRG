@@ -58,6 +58,7 @@ volatile uint32_t lSystickCounter=0;
 
 /* Private function prototypes -----------------------------------------------*/
 void SdkDelayMs(volatile uint32_t lTimeMs);
+void MFT_Configuration(void);
 
 /* Private functions ---------------------------------------------------------*/
 
@@ -96,7 +97,6 @@ int main(void)
   MotorInit(MOTOR_POS_PIN, MOTOR_NEG_PIN, MOTOR_CHA_PIN, MOTOR_CHB_PIN);
   Lil_ButtonInit(GPIO_Pin_12);
   Lil_MotionDetectorIrq(GPIO_Pin_12, IRQ_ON_RISING_EDGE);
-  unsigned percentage = 50;
 
 
   /* BlueNRG-1 stack init */
@@ -118,18 +118,21 @@ int main(void)
   
   PRINTF("BLE Stack Initialized & Device Configured\r\n");
 
+  //Enable polling timer
+  //MFT_Cmd(MFT1,ENABLE);
+
   /* Set APP FLAGS */
-  MotorControl(percentage);
-  MotorControl(0);
   APP_FLAG_CLEAR(CAL_START);
-  SdkDelayMs(3000);
   while(1) {
     /* Disable UART IRQ to avoid calling BLE stack functions while BTLE_StackTick() is running. */
     NVIC_DisableIRQ(UART_IRQn);
+    NVIC_DisableIRQ(GPIO_IRQn);
     
     /* BlueNRG-1 stack tick */
     BTLE_StackTick();
+
     NVIC_EnableIRQ(UART_IRQn);
+    NVIC_EnableIRQ(GPIO_IRQn);
     /* Application tick */
     APP_Tick();
   }

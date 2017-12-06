@@ -44,7 +44,7 @@
 /** 
   * @brief  Variable which contains some flags useful for application
   */ 
-extern volatile int app_flags;
+extern volatile long int app_flags;
 
 /** 
   * @brief  Flags for application
@@ -57,11 +57,23 @@ extern volatile int app_flags;
 /* Added flags for handling TX, RX characteristics discovery */
 #define START_READ_MD_CHAR_HANDLE 0x1000
 #define END_READ_MD_CHAR_HANDLE   0x2000
-#define START_READ_RX_CHAR_HANDLE 0x4000
-#define END_READ_RX_CHAR_HANDLE   0x8000
+#define START_READ_TM_CHAR_HANDLE 0x4000
+#define END_READ_TM_CHAR_HANDLE   0x8000
+#define START_READ_HM_CHAR_HANDLE 0x10000
+#define END_READ_HM_CHAR_HANDLE   0x20000
+#define START_READ_BC_CHAR_HANDLE 0x40000
+#define END_READ_BC_CHAR_HANDLE   0x80000
+#define START_READ_BT_CHAR_HANDLE 0x100000
+#define END_READ_BT_CHAR_HANDLE   0x200000
 
 /* GATT EVT_BLUE_GATT_TX_POOL_AVAILABLE event */
-#define TX_BUFFER_FULL            0x010000
+#define TX_BUFFER_FULL            0x01000000
+#define START_TM_CCD		  	  0x02000000
+#define END_TM_CCD		  	  	  0x04000000
+#define START_MD_CCD		  	  0x08000000
+#define END_MD_CCD		  	  	  0x10000000
+#define START_HM_CCD		  	  0x20000000
+#define END_HM_CCD		  	  	  0x40000000
 
 /* Exported macros -----------------------------------------------------------*/
 #define APP_FLAG(flag) (app_flags & flag)
