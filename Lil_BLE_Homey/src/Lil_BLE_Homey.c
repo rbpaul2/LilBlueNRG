@@ -63,6 +63,7 @@
 /* Private variables ---------------------------------------------------------*/
 volatile uint32_t lSystickCounter=0;
 ADC_InitType xADC_InitType;
+uint8_t ventState;
 
 /* Private function prototypes -----------------------------------------------*/
 void SdkDelayMs(volatile uint32_t lTimeMs);
@@ -142,6 +143,7 @@ int main(void)
   VentControl(VENT_CLOSE);
   SdkDelayMs(500);
   VentControl(VENT_OPEN);
+  ventState = VENT_OPEN;
   while(1) {
     /* Disable UART IRQ to avoid calling BLE stack functions while BTLE_StackTick() is running. */
 	CRITICAL_BLE_TICK();
@@ -178,19 +180,27 @@ void VentControl(uint8_t action)
     NVIC_DisableIRQ(RTC_IRQn);
 	if (action == VENT_OPEN)
 	{
-		struct timer t;
-		Timer_Set(&t, 1400);
-		lil_vent_open();
-		while(!Timer_Expired(&t));
-		lil_vent_stop();
+		if (ventState != VENT_OPEN)
+		{
+			struct timer t;
+			Timer_Set(&t, 1400);
+			lil_vent_open();
+			while(!Timer_Expired(&t));
+			lil_vent_stop();
+			ventState = VENT_OPEN;
+		}
 	}
 	else if (action == VENT_CLOSE)
 	{
-		struct timer t;
-		Timer_Set(&t, 1400);
-		lil_vent_close();
-		while(!Timer_Expired(&t));
-		lil_vent_stop();
+		if (ventState != VENT_CLOSE)
+		{
+			struct timer t;
+			Timer_Set(&t, 1400);
+			lil_vent_close();
+			while(!Timer_Expired(&t));
+			lil_vent_stop();
+			ventState = VENT_CLOSE;
+		}
 
 	}
 	NVIC_EnableIRQ(UART_IRQn);

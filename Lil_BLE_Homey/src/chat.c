@@ -113,6 +113,7 @@ static char cmd[CMD_BUFF_SIZE];
 
 uint8_t relay_bc_val, relay_md_val;
 uint16_t relay_tm_val, relay_hm_val;
+float blind_temperature, blind_humidity;
 
 uint8_t CO_detected = 1;
 uint8_t CO_none = 0;
@@ -543,10 +544,10 @@ void APP_Tick(void)
 	  {
 		  if (ADC_GetFlagStatus(ADC_FLAG_EOC)) {
 			  //Read converted data
-			  adc_data1 = ADC_GetConvertedData(xADC_InitType.ADC_Input, xADC_InitType.ADC_ReferenceVoltage)*1000.0;
+			  adc_data1 = ADC_GetConvertedData(xADC_InitType.ADC_Input, xADC_InitType.ADC_ReferenceVoltage)*1000;
 			  printf("ADC Value1: %f mV\n", adc_data1);
 			  SdkDelayMs(100);
-			  adc_data2 = ADC_GetConvertedData(xADC_InitType.ADC_Input, xADC_InitType.ADC_ReferenceVoltage)*1000.0;
+			  adc_data2 = ADC_GetConvertedData(xADC_InitType.ADC_Input, xADC_InitType.ADC_ReferenceVoltage)*1000;
 			  printf("ADC Value2: %f mV\n", adc_data2);
 			  SdkDelayMs(100);
 			  if (adc_data1 == adc_data2)
@@ -587,24 +588,24 @@ void APP_Tick(void)
 		  if(target_temperature > (relay_tm_val + 1)){
 			  if(temperature > relay_tm_val)
 			  {
-				  //open vent
+				  PRINTF("open vent\n");
 				  VentControl(VENT_OPEN);
 			  }
 			  else
 			  {
-				  //close vent
+				  PRINTF("close vent\n");
 				  VentControl(VENT_CLOSE);
 			  }
 		  }
 		  else if(target_temperature < (relay_tm_val - 1)){
 			  if(temperature < relay_tm_val)
 			  {
-				  //open vent
+				  PRINTF("open vent\n");
 				  VentControl(VENT_OPEN);
 			  }
 			  else
 			  {
-				  //close vent
+				  PRINTF("close vent\n");
 				  VentControl(VENT_CLOSE);
 			  }
 		  }
@@ -675,13 +676,17 @@ void APP_Tick(void)
 
   if (CHAR_FLAG(RELAY_TM_CHAR))
   {
-	  Update_Characteristic_Val(TemperatureServHandle, TemperatureCharHandle,0,2, &relay_tm_val);
+	  blind_temperature = relay_tm_val;
+	  PRINTF("Blind Temperature (Float): %f\n", blind_temperature);
+	  Update_Characteristic_Val(TemperatureServHandle, TemperatureCharHandle,0,4, (uint8_t*) &blind_temperature);
 	  CHAR_FLAG_CLEAR(RELAY_TM_CHAR);
   }
 
   if (CHAR_FLAG(RELAY_HM_CHAR))
   {
-	  Update_Characteristic_Val(HumidityServHandle, HumidityCharHandle,0,2, &relay_hm_val);
+	  blind_humidity = relay_hm_val;
+	  PRINTF("Blind Humidity (Float): %f\n", blind_humidity);
+	  Update_Characteristic_Val(HumidityServHandle, HumidityCharHandle,0,4, (uint8_t*) &blind_humidity);
 	  CHAR_FLAG_CLEAR(RELAY_HM_CHAR);
   }
 
@@ -828,6 +833,7 @@ void APP_Tick(void)
       PRINTF("Registered for notifications on blind characteristics\n");
 
       APP_FLAG_SET(NOTIFICATIONS_ENABLED);
+      if (!APP_FLAG(CONNECTED_TO_HUB)) APP_FLAG_SET(SET_CONNECTABLE);
     }
   }/* if (device_role == MASTER_ROLE) */
 
@@ -934,6 +940,10 @@ void hci_le_connection_complete_event(uint8_t Status,
 	  APP_FLAG_CLEAR(SET_CONNECTABLE);
 	  APP_FLAG_SET(POLLING);
 	  Timer_Set(&pollTimer, CLOCK_SECOND*10);
+  }
+  else if (APP_FLAG(CONNECTED_TO_SLAVE))
+  {
+	  APP_FLAG_CLEAR(SET_CONNECTABLE);
   }
 
   PRINTF("hci_le_connection_complete_event() Role=%d\n", device_role);
