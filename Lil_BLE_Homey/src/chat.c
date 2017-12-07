@@ -119,7 +119,9 @@ uint8_t CO_detected = 1;
 uint8_t CO_none = 0;
 
 int temperature, humidity;
+float temperature_f, humidity_f;
 volatile uint16_t target_temperature;
+float target_temp_float;
 
 extern ADC_InitType xADC_InitType;
 volatile float adc_data1, adc_data2;
@@ -581,11 +583,24 @@ void APP_Tick(void)
 		  SdkDelayMs(500);
 		  SdkEvalI2CRead(&tmpregb,0x40,0xf3,2); // temp
 		  temperature = (int)((((tmpregb[0]*256 + tmpregb[1]) *175.72)/65536.0) - 46.85);
-		  PRINTF("[Vent] Temperature = %d, Humidity = %d\n", temperature, humidity);
-		  PRINTF("[Vent] Target Temperature = %d\n", target_temperature);
+		  temperature_f = temperature;
+		  humidity_f = temperature;
+
+
+		  if (!CHAR_FLAG(TARG_TEMP_SET))
+		  {
+			  target_temp_float = temperature_f;
+			  CHAR_FLAG_SET(TARG_TEMP_SET);
+		  }
+		  CHAR_FLAG_SET(UPDATE_CURR_TEMP);
+
+		  PRINTF("[Vent] Temperature = %f, Humidity = %f\n", temperature_f, humidity_f);
+		  PRINTF("[Vent] Target Temperature = %f\n", target_temp_float);
+
+
 
 		  // blind temperature variable: relay_tm_val
-		  if(target_temperature > (relay_tm_val + 1)){
+		  if(target_temp_float > (relay_tm_val + 1)){
 			  if(temperature > relay_tm_val)
 			  {
 				  PRINTF("open vent\n");
@@ -597,7 +612,7 @@ void APP_Tick(void)
 				  VentControl(VENT_CLOSE);
 			  }
 		  }
-		  else if(target_temperature < (relay_tm_val - 1)){
+		  else if(target_temp_float < (relay_tm_val - 1)){
 			  if(temperature < relay_tm_val)
 			  {
 				  PRINTF("open vent\n");
@@ -611,7 +626,12 @@ void APP_Tick(void)
 		  }
 		  else
 		  {
-
+			  if ((temperature > relay_tm_val + 1) ||
+				  (temperature < relay_tm_val - 1))
+			  {
+				  PRINTF("Temperature = Target Temp, closing vent\n");
+				  VentControl(VENT_CLOSE);
+			  }
 		  }
 
 
@@ -678,7 +698,7 @@ void APP_Tick(void)
   {
 	  blind_temperature = relay_tm_val;
 	  PRINTF("Blind Temperature (Float): %f\n", blind_temperature);
-	  Update_Characteristic_Val(TemperatureServHandle, TemperatureCharHandle,0,4, (uint8_t*) &blind_temperature);
+	  Update_Characteristic_Val(TemperatureServHandle, TemperatureCharHandle,0,4, (uint8_t*) &temperature_f);
 	  CHAR_FLAG_CLEAR(RELAY_TM_CHAR);
   }
 
@@ -692,7 +712,7 @@ void APP_Tick(void)
 
   if (CHAR_FLAG(UPDATE_CURR_TEMP))
   {
-	  Update_Characteristic_Val(ThermostatServHandle, CurrentTempCharHandle,0,2, &temperature);
+	  Update_Characteristic_Val(ThermostatServHandle, CurrentTempCharHandle,0,4, &blind_temperature);
 	  CHAR_FLAG_CLEAR(UPDATE_CURR_TEMP);
   }
         

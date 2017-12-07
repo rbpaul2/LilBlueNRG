@@ -47,7 +47,7 @@ extern volatile uint16_t slave_connection_handle;
 extern uint16_t md_handle, tm_handle, hm_handle, bc_handle, bt_handle;
 
 extern volatile uint16_t target_temperature;
-
+extern float target_temp_float;
 /* UUIDs */
 Service_UUID_t  service_uuid;
 Char_UUID_t char_uuid;
@@ -311,7 +311,7 @@ void Attribute_Modified_CB(uint16_t handle, uint16_t data_length, uint8_t *att_d
 		Timer_Set(&t, CLOCK_SECOND*10);
 		while(aci_gatt_write_without_resp(slave_connection_handle, bt_handle+1, data_length, att_data)==BLE_STATUS_NOT_ALLOWED) {
 			CRITICAL_BLE_TICK();
-			// Radio is busy (buffer full).
+			// Radio is busy (buffer full)
 			if(Timer_Expired(&t))
 				break;
 		}
@@ -320,8 +320,10 @@ void Attribute_Modified_CB(uint16_t handle, uint16_t data_length, uint8_t *att_d
 	}
 	else if (handle == TargetTempCharHandle + 1)
 	{
-		printf("TargTemperature modified: %d \n", att_data[0]);
-		Osal_MemCpy(&target_temperature, att_data, data_length);
+		printf("TargTemperature modified: %f \n", att_data);
+		printf("%d", data_length);
+		Osal_MemCpy(&target_temp_float, att_data, data_length);
+
 	}
 //	else if(handle == TemperatureCharHandle + 1)
 //	{

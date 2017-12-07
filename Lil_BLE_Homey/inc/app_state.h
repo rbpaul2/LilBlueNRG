@@ -90,6 +90,8 @@ extern volatile long int char_flags;
 #define RELAY_HM_CHAR			  0x00000400
 #define RELAY_MD_CHAR			  0x00000800
 #define UPDATE_CURR_TEMP		  0x00001000
+#define TARG_TEMP_SET			  0x00002000
+
 
 /* Exported macros -----------------------------------------------------------*/
 #define APP_FLAG(flag) (app_flags & flag)
