@@ -29,6 +29,7 @@
 #include "app_state.h"
 #include "bluenrg1_stack.h"
 #include "SDK_EVAL_Com.h"
+#include "SDK_EVAL_Config.h"
 #include "Lil_MotionDetector.h"
 #include "clock.h"
 #include "osal.h"
@@ -82,7 +83,7 @@ extern volatile uint32_t lSystickCounter;
 #define MOTION_OFF	0
 /* Private variables ---------------------------------------------------------*/
 uint8_t MotionDetectedVal;
-
+volatile int rtc_cnt = 0;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -105,6 +106,35 @@ void HardFault_Handler(void)
   /* Go to infinite loop when Hard Fault exception occurs */
   while (1)
   {}
+}
+
+/*
+ * This function handle RTC timer interrupt
+ * The interrupt handler will set GPIO_Pin_7 to low for 60 seconds
+ * and then set GPIO_Pin_7 to high for 90 seconds
+ */
+void RTC_Handler(void){
+	if(SET == RTC_IT_Status(RTC_IT_TIMER))
+	{
+		/*clear pending interrupt flag*/
+		RTC_IT_Clear(RTC_IT_TIMER);
+		++rtc_cnt;
+		rtc_cnt = rtc_cnt % 5;
+		if(rtc_cnt == 2)
+		{
+			GPIO_WriteBit(GPIO_Pin_6, SET);
+		}
+		else if(rtc_cnt == 0)
+		{
+			APP_FLAG_CLEAR(POLL_CO);
+			GPIO_WriteBit(GPIO_Pin_6, RESET);
+		}
+		else if(rtc_cnt == 3)
+		{
+			APP_FLAG_CLEAR(CO_STABLE);
+			APP_FLAG_SET(POLL_CO);
+		}
+	}
 }
 
 /**

@@ -167,7 +167,7 @@ void GPIO_Handler(void)
 	}
 	else if(GPIO_GetITPendingBit(MOTOR_CHB_PIN) == SET)
 	{
-		PRINTF("Encoder Interrupt()\n");
+		//PRINTF("Encoder Interrupt()\n");
 		GPIO_ClearITPendingBit(MOTOR_CHB_PIN);
 		Encoder_Handler();
 	}
@@ -215,13 +215,7 @@ void Blue_Handler(void)
 
 void MFT1B_Handler(void)
 {
-	if ( MFT_StatusIT(MFT1, MFT_IT_TND) != RESET )
-	{
-		printf("Polling\n");
-		APP_FLAG_SET(POLLING);
-		MFT_SetCounter2(MFT1, 50000);
-		MFT_ClearIT(MFT1, MFT_IT_TND);
-	}
+
 }
 
 /**

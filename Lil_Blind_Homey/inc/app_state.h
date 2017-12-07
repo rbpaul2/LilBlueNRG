@@ -65,6 +65,8 @@ extern volatile int app_flags;
 #define TX_BUFFER_FULL            0x010000
 
 /* Motor Flags */
+#define BLIND_TARGET_PENDING	  0x020000
+
 #define CAL_START				  0x100000
 #define CAL_END				  	  0x200000
 

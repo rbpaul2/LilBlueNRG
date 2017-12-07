@@ -23,6 +23,7 @@
 #include "SDK_EVAL_Config.h"
 #include "osal.h"
 #include "gatt_db.h"
+#include "Lil_motor.h"
 
 /* External variables --------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
@@ -82,10 +83,10 @@ extern uint16_t ServHandle,
 				MotionDetectedCharHandle;
 
 int temperature, humidity;
-uint8_t temp_val[8];
-uint64_t tester,tempptr,humidptr;
-uint8_t hum_val[8];
-uint8_t temper[8] = {0x11, 0x11, 0x11, 0x11, 0x22, 0x22, 0x22, 0x22};
+volatile int last_target_pos;
+extern volatile int cur_pos;
+extern volatile int full_pos;
+
 tBleStatus errRet;
 
 /* UUIDs */
@@ -449,6 +450,17 @@ void APP_Tick(void)
   {
 	  MotorCalibration();
   }
+  if (APP_FLAG(BLIND_TARGET_PENDING))
+  {
+	  uint32_t val;
+	  MotorControl(last_target_pos);
+	  val = (int)(((double)cur_pos/(double)full_pos) * 100);
+	  if (abs(last_target_pos - val) < 3) val = last_target_pos;
+	  printf("%d \n", val);
+	  Update_Characteristic_Val(ServHandle,BlindCurrPosCharHandle,0,4, &val);
+	  APP_FLAG_CLEAR(BLIND_TARGET_PENDING);
+  }
+
   if(APP_FLAG(SET_CONNECTABLE)) {
     Connection_StateMachine();
   }
@@ -470,9 +482,6 @@ void APP_Tick(void)
 				  SdkEvalI2CRead(&tmpregb,0x40,0xf3,2); // temp
 				  temperature = (int)((((tmpregb[0]*256 + tmpregb[1]) *175.72)/65536.0) - 46.85);
 				  PRINTF("Temperature = %d, Humidity = %d\n", temperature, humidity);
-
-				  humidity = 20;
-				  temperature = 10;
 
 				  //update characteristic value
 				  //Update_Characteristic_Val(ServHandle,TemperatureCharHandle,0,8, &temperature);

@@ -171,13 +171,12 @@ void MotorControl(unsigned percentage)
 	int target_pos = full_pos * percentage / 100;
 	if (target_pos > cur_pos)
 	{
-		//while(target_pos > cur_pos)
 		blind_close();
 		while (target_pos > cur_pos)
 		{
 			printf("increment cur_pos = %d\n", cur_pos);
 		}
-		printf("exit increment loop !!!!!!!!!!!!!!!!!!!!\n");
+		printf("exit increment loop !\n");
 	}
 	else if((target_pos < cur_pos))
 	{
@@ -185,7 +184,7 @@ void MotorControl(unsigned percentage)
 		while (target_pos < cur_pos) {
 			printf("decrement cur_pos = %d\n", cur_pos);
 		}
-		printf("exit decrement loop 11111111111111111\n");
+		printf("exit decrement loop !\n");
 	}
 	else
 	{

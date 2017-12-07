@@ -16,10 +16,10 @@
 #define DEFAULT_NUM_GATT_ATTRIBUTES 15 // REFER TO USER MANUAL PM0257 Section 2.3
 
 /* Number of services requests from the homey app */
-#define NUM_APP_GATT_SERVICES 5
+#define NUM_APP_GATT_SERVICES 6
 
 /* Number of attributes requests from the homey app */
-#define NUM_APP_GATT_ATTRIBUTES 100
+#define NUM_APP_GATT_ATTRIBUTES 110
 
 /* Number of links needed for the demo: 1
  * Only 1 the default

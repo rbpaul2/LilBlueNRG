@@ -24,12 +24,14 @@
 
 uint16_t BlindServHandle,
 	MotionServHandle,
+	CarbonMonoxideServHandle,
 	TemperatureServHandle,
 	HumidityServHandle,
 	ThermostatServHandle,
 	TemperatureCharHandle,
 	HumidityCharHandle,
 	MotionDetectedCharHandle,
+	CarbonMonoxideCharHandle,
 	BlindCurrPosCharHandle,
 	BlindTargPosCharHandle,
 	BlindPosStateCharHandle,
@@ -40,6 +42,11 @@ uint16_t BlindServHandle,
 	TempUnitsCharHandle,
 	CoolingThresholdCharHandle,
 	HeatingThresholdCharHandle;
+
+extern volatile uint16_t slave_connection_handle;
+extern uint16_t md_handle, tm_handle, hm_handle, bc_handle, bt_handle;
+
+extern volatile uint16_t target_temperature;
 
 /* UUIDs */
 Service_UUID_t  service_uuid;
@@ -62,6 +69,7 @@ uint8_t Add_ChatService(void)
   Temp Service  	F11738E0-B19E-11E2-9E96-0800200C9A66
   Humidity Service 	F21738E0-B19E-11E2-9E96-0800200C9A66
   Thermostat Serv   F31738E0-B19E-11E2-9E96-0800200C9A66
+  CO Serv   		F41738E0-B19E-11E2-9E96-0800200C9A66
 
   Temperature  		001738F1-B19E-11E2-9E96-0800200C9A66
   Humidity 			001738F2-B19E-11E2-9E96-0800200C9A66
@@ -85,6 +93,9 @@ uint8_t Add_ChatService(void)
   const uint8_t uuidMotion[16] = 				{ 0x66, 0x9a, 0x0c, 0x20, 0x00, 0x08,
   		  	  	  	  	  	  	  	  	  	  	  0x96, 0x9e, 0xe2, 0x11, 0x9e, 0xb1,
   												  0xe0, 0x38, 0x17, 0xF0 };
+  const uint8_t uuidCarbonMonoxide[16] = 		{ 0x66, 0x9a, 0x0c, 0x20, 0x00, 0x08,
+    		  	  	  	  	  	  	  	  	  	  0x96, 0x9e, 0xe2, 0x11, 0x9e, 0xb1,
+    											  0xe0, 0x38, 0x17, 0xF4 };
   const uint8_t uuidTemp[16] = 					{ 0x66, 0x9a, 0x0c, 0x20, 0x00, 0x08,
     		  	  	  	  	  	  	  	  	  	  0x96, 0x9e, 0xe2, 0x11, 0x9e, 0xb1,
     										      0xe0, 0x38, 0x17, 0xF1 };
@@ -104,6 +115,9 @@ uint8_t Add_ChatService(void)
   const uint8_t charUuidMotionDetected[16] = 	{ 0x66, 0x9a, 0x0c, 0x20, 0x00, 0x08,
   	  	  	  	  	  	  	  	  	  	  	  	  0x96, 0x9e, 0xe2, 0x11, 0x9e, 0xb1,
 												  0xf3, 0x38, 0x17, 0x00 };
+  const uint8_t charUuidCarbonMonoxide[16] = 	{ 0x66, 0x9a, 0x0c, 0x20, 0x00, 0x08,
+    	  	  	  	  	  	  	  	  	  	  	  0x96, 0x9e, 0xe2, 0x11, 0x9e, 0xb1,
+  												  0xf4, 0x38, 0x17, 0x00 };
   const uint8_t charUuidBlindCurrPos[16] = 		{ 0x66, 0x9a, 0x0c, 0x20, 0x00, 0x08,
 	  	  	  	  	  	  	  	  	  	  	  	  0x96, 0x9e, 0xe2, 0x11, 0x9e, 0xb1,
 						  	  	  	  	  	  	  0xb1, 0x38, 0x17, 0x11 };
@@ -146,6 +160,10 @@ uint8_t Add_ChatService(void)
   ret = aci_gatt_add_service(UUID_TYPE_128, &service_uuid, PRIMARY_SERVICE, 9 /* numAttributeRecords */, &MotionServHandle);
   if (ret != BLE_STATUS_SUCCESS) goto fail;
 
+  Osal_MemCpy(&service_uuid.Service_UUID_128, uuidCarbonMonoxide, 16);
+    ret = aci_gatt_add_service(UUID_TYPE_128, &service_uuid, PRIMARY_SERVICE, 9 /* numAttributeRecords */, &CarbonMonoxideServHandle);
+    if (ret != BLE_STATUS_SUCCESS) goto fail;
+
   Osal_MemCpy(&service_uuid.Service_UUID_128, uuidTemp, 16);
   ret = aci_gatt_add_service(UUID_TYPE_128, &service_uuid, PRIMARY_SERVICE, 9 /* numAttributeRecords */, &TemperatureServHandle);
   if (ret != BLE_STATUS_SUCCESS) goto fail;
@@ -184,6 +202,12 @@ uint8_t Add_ChatService(void)
   if (ret != BLE_STATUS_SUCCESS) goto fail;
   PRINTF("[Added Char] MotionDetected UUID[12] = %02X\n", charUuidMotionDetected[12]);
 
+  Osal_MemCpy(&char_uuid.Char_UUID_128, charUuidCarbonMonoxide, 16);
+  ret =  aci_gatt_add_char(CarbonMonoxideServHandle, UUID_TYPE_128, &char_uuid, 1, CHAR_PROP_NOTIFY | CHAR_PROP_READ, ATTR_PERMISSION_NONE, 0,
+		  16, 0, &CarbonMonoxideCharHandle);
+  if (ret != BLE_STATUS_SUCCESS) goto fail;
+  PRINTF("[Added Char] CarbonMonoxide UUID[12] = %02X\n", charUuidCarbonMonoxide[12]);
+
   Osal_MemCpy(&char_uuid.Char_UUID_128, charUuidTemperature, 16);
   ret =  aci_gatt_add_char(TemperatureServHandle, UUID_TYPE_128, &char_uuid, 4, CHAR_PROP_NOTIFY | CHAR_PROP_READ, ATTR_PERMISSION_NONE, 0,
 		  16, 0, &TemperatureCharHandle);
@@ -204,7 +228,7 @@ uint8_t Add_ChatService(void)
   PRINTF("[Added Char] Current Temp UUID[12] = %02X\n", charUuidCurrentTemp[12]);
 
   Osal_MemCpy(&char_uuid.Char_UUID_128, charUuidTargetTemp, 16);
-  ret =  aci_gatt_add_char(ThermostatServHandle, UUID_TYPE_128, &char_uuid, 4, CHAR_PROP_NOTIFY | CHAR_PROP_READ, ATTR_PERMISSION_NONE, 0,
+  ret =  aci_gatt_add_char(ThermostatServHandle, UUID_TYPE_128, &char_uuid, 4, CHAR_PROP_NOTIFY | CHAR_PROP_READ | CHAR_PROP_WRITE | CHAR_PROP_WRITE_WITHOUT_RESP, ATTR_PERMISSION_NONE, GATT_NOTIFY_ATTRIBUTE_WRITE,
 		  16, 0, &TargetTempCharHandle);
   if (ret != BLE_STATUS_SUCCESS) goto fail;
   PRINTF("[Added Char] Target Temp UUID[12] = %02X\n", charUuidTargetTemp[12]);
@@ -217,7 +241,7 @@ uint8_t Add_ChatService(void)
   // 0=OFF, 1=HEAT, 2=COOL
 
   Osal_MemCpy(&char_uuid.Char_UUID_128, charUuidTargetHCState, 16);
-  ret =  aci_gatt_add_char(ThermostatServHandle, UUID_TYPE_128, &char_uuid, 4, CHAR_PROP_NOTIFY | CHAR_PROP_READ | CHAR_PROP_WRITE | CHAR_PROP_WRITE_WITHOUT_RESP, ATTR_PERMISSION_NONE, 0,
+  ret =  aci_gatt_add_char(ThermostatServHandle, UUID_TYPE_128, &char_uuid, 4, CHAR_PROP_NOTIFY | CHAR_PROP_READ | CHAR_PROP_WRITE | CHAR_PROP_WRITE_WITHOUT_RESP, ATTR_PERMISSION_NONE, GATT_NOTIFY_ATTRIBUTE_WRITE,
 		  16, 0, &TargetHCStateCharHandle);
   if (ret != BLE_STATUS_SUCCESS) goto fail;
   PRINTF("[Added Char] Target Heating/Cooling State UUID[12] = %02X\n", charUuidTargetHCState[12]);
@@ -229,17 +253,17 @@ uint8_t Add_ChatService(void)
   if (ret != BLE_STATUS_SUCCESS) goto fail;
   PRINTF("[Added Char] Temp Display Units UUID[12] = %02X\n", charUuidTempUnits[12]);
 
-  Osal_MemCpy(&char_uuid.Char_UUID_128, charUuidCoolingThreshold, 16);
-  ret =  aci_gatt_add_char(ThermostatServHandle, UUID_TYPE_128, &char_uuid, 4, CHAR_PROP_NOTIFY | CHAR_PROP_READ | CHAR_PROP_WRITE | CHAR_PROP_WRITE_WITHOUT_RESP, ATTR_PERMISSION_NONE, 0,
-		  16, 0, &CoolingThresholdCharHandle);
-  if (ret != BLE_STATUS_SUCCESS) goto fail;
-  PRINTF("[Added Char] Cooling Threshold UUID[12] = %02X\n", charUuidCoolingThreshold[12]);
-
-  Osal_MemCpy(&char_uuid.Char_UUID_128, charUuidHeatingThreshold, 16);
-  ret =  aci_gatt_add_char(ThermostatServHandle, UUID_TYPE_128, &char_uuid, 4, CHAR_PROP_NOTIFY | CHAR_PROP_READ | CHAR_PROP_WRITE | CHAR_PROP_WRITE_WITHOUT_RESP, ATTR_PERMISSION_NONE, 0,
-		  16, 0, &HeatingThresholdCharHandle);
-  if (ret != BLE_STATUS_SUCCESS) goto fail;
-  PRINTF("[Added Char] Heating Threshold UUID[12] = %02X\n", charUuidHeatingThreshold[12]);
+//  Osal_MemCpy(&char_uuid.Char_UUID_128, charUuidCoolingThreshold, 16);
+//  ret =  aci_gatt_add_char(ThermostatServHandle, UUID_TYPE_128, &char_uuid, 4, CHAR_PROP_NOTIFY | CHAR_PROP_READ | CHAR_PROP_WRITE | CHAR_PROP_WRITE_WITHOUT_RESP, ATTR_PERMISSION_NONE, 0,
+//		  16, 0, &CoolingThresholdCharHandle);
+//  if (ret != BLE_STATUS_SUCCESS) goto fail;
+//  PRINTF("[Added Char] Cooling Threshold UUID[12] = %02X\n", charUuidCoolingThreshold[12]);
+//
+//  Osal_MemCpy(&char_uuid.Char_UUID_128, charUuidHeatingThreshold, 16);
+//  ret =  aci_gatt_add_char(ThermostatServHandle, UUID_TYPE_128, &char_uuid, 4, CHAR_PROP_NOTIFY | CHAR_PROP_READ | CHAR_PROP_WRITE | CHAR_PROP_WRITE_WITHOUT_RESP, ATTR_PERMISSION_NONE, 0,
+//		  16, 0, &HeatingThresholdCharHandle);
+//  if (ret != BLE_STATUS_SUCCESS) goto fail;
+//  PRINTF("[Added Char] Heating Threshold UUID[12] = %02X\n", charUuidHeatingThreshold[12]);
 
   printf("[Added Service]\n\n");
   return BLE_STATUS_SUCCESS; 
@@ -260,11 +284,7 @@ void Update_Characteristic_Val( uint16_t Service_Handle,
 	while(aci_gatt_update_char_value(Service_Handle, Char_Handle, Val_Offset, Char_Value_Length, Char_Value)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
 		APP_FLAG_SET(TX_BUFFER_FULL);
 		while(APP_FLAG(TX_BUFFER_FULL)) {
-			NVIC_DisableIRQ(UART_IRQn);
-			NVIC_DisableIRQ(GPIO_IRQn);
-			BTLE_StackTick();
-			NVIC_EnableIRQ(UART_IRQn);
-			NVIC_EnableIRQ(GPIO_IRQn);
+			CRITICAL_BLE_TICK();
 			// Radio is busy (buffer full).
 			if(Timer_Expired(&t))
 				break;
@@ -284,14 +304,24 @@ void Attribute_Modified_CB(uint16_t handle, uint16_t data_length, uint8_t *att_d
 {
 	if(handle == BlindTargPosCharHandle + 1)
 	{
-
-		for(int i = 0; i < data_length; i++)
-			printf("%d \n", att_data[i]);
+		printf("BlindTargPos modified: %d \n", att_data[0]);
 
 		//TODO Write to BlindTargetPos char on blinds device
-
+		struct timer t;
+		Timer_Set(&t, CLOCK_SECOND*10);
+		while(aci_gatt_write_without_resp(slave_connection_handle, bt_handle+1, data_length, att_data)==BLE_STATUS_NOT_ALLOWED) {
+			CRITICAL_BLE_TICK();
+			// Radio is busy (buffer full).
+			if(Timer_Expired(&t))
+				break;
+		}
 		//Update_Characteristic_Val(BlindServHandle,BlindCurrPosCharHandle,0,data_length,att_data);
 
+	}
+	else if (handle == TargetTempCharHandle + 1)
+	{
+		printf("TargTemperature modified: %d \n", att_data[0]);
+		Osal_MemCpy(&target_temperature, att_data, data_length);
 	}
 //	else if(handle == TemperatureCharHandle + 1)
 //	{

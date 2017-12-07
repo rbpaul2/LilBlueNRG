@@ -22,6 +22,9 @@
 
 
 /* Exported variables ------------------------------------------------------- */  
+
+#define VENT_OPEN	1
+#define VENT_CLOSE	0
 /** 
   * @brief  Device Role
   */      
@@ -45,7 +48,7 @@
   * @brief  Variable which contains some flags useful for application
   */ 
 extern volatile long int app_flags;
-
+extern volatile long int char_flags;
 /** 
   * @brief  Flags for application
   */ 
@@ -68,18 +71,47 @@ extern volatile long int app_flags;
 
 /* GATT EVT_BLUE_GATT_TX_POOL_AVAILABLE event */
 #define TX_BUFFER_FULL            0x01000000
-#define START_TM_CCD		  	  0x02000000
-#define END_TM_CCD		  	  	  0x04000000
-#define START_MD_CCD		  	  0x08000000
-#define END_MD_CCD		  	  	  0x10000000
-#define START_HM_CCD		  	  0x20000000
-#define END_HM_CCD		  	  	  0x40000000
+#define POLLING					  0x02000000
+#define CAL_START				  0x04000000
+#define POLL_CO					  0x08000000
+#define CO_STABLE				  0x10000000
+
+/* Flags for registering CHAR_FLAG characteristic notifications */
+#define START_TM_CCD		  	  0x00000001
+#define END_TM_CCD		  	  	  0x00000002
+#define START_MD_CCD		  	  0x00000004
+#define END_MD_CCD		  	  	  0x00000008
+#define START_HM_CCD		  	  0x00000010
+#define END_HM_CCD		  	  	  0x00000020
+#define START_BC_CCD		  	  0x00000040
+#define END_BC_CCD		  	  	  0x00000080
+#define RELAY_BC_CHAR			  0x00000100
+#define RELAY_TM_CHAR			  0x00000200
+#define RELAY_HM_CHAR			  0x00000400
+#define RELAY_MD_CHAR			  0x00000800
+#define UPDATE_CURR_TEMP		  0x00001000
 
 /* Exported macros -----------------------------------------------------------*/
 #define APP_FLAG(flag) (app_flags & flag)
-
 #define APP_FLAG_SET(flag) (app_flags |= flag)
 #define APP_FLAG_CLEAR(flag) (app_flags &= ~flag)
+
+#define CHAR_FLAG(flag) (char_flags & flag)
+#define CHAR_FLAG_SET(flag) (char_flags |= flag)
+#define CHAR_FLAG_CLEAR(flag) (char_flags &= ~flag)
+
+#define CRITICAL_BLE_TICK() {\
+				  	  	  	  NVIC_DisableIRQ(UART_IRQn);\
+				  	  	  	  NVIC_DisableIRQ(GPIO_IRQn);\
+				  	  	  	  NVIC_DisableIRQ(ADC_IRQn);\
+				  	  	  	  NVIC_DisableIRQ(RTC_IRQn);\
+				  	  	  	  BTLE_StackTick();\
+				  	  	  	  NVIC_EnableIRQ(UART_IRQn);\
+				  	  	  	  NVIC_EnableIRQ(GPIO_IRQn);\
+				  	  	  	  NVIC_EnableIRQ(ADC_IRQn);\
+				  	  	  	  NVIC_EnableIRQ(RTC_IRQn);\
+							}
+
 
 
 #ifdef __cplusplus

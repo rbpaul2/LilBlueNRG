@@ -26,6 +26,7 @@
 /* Includes ------------------------------------------------------------------*/
 /* Uncomment/Comment the line below to enable/disable peripheral header file inclusion */
 
+#include "BlueNRG1_adc.h"
 #include "BlueNRG1_flash.h"
 #include "BlueNRG1_gpio.h"
 #include "BlueNRG1_dma.h"
@@ -34,7 +35,7 @@
 /*#include "BlueNRG1_spi.h"*/
 #include "BlueNRG1_uart.h"
 /*#include "BlueNRG1_mft.h"*/
-/*#include "BlueNRG1_rtc.h"*/
+#include "BlueNRG1_rtc.h"
 #include "BlueNRG1_dma.h"
 #include "BlueNRG1_sysCtrl.h"
 #include "misc.h" /* High level functions for NVIC and SysTick (add-on to CMSIS functions) */

@@ -71,16 +71,19 @@ typedef struct discoveryContext_s {
 /* Private variables ---------------------------------------------------------*/
 static discoveryContext_t discovery;
 volatile long int app_flags = SET_CONNECTABLE;
+volatile long int char_flags = 0;
 volatile uint16_t hub_connection_handle = 0;
 volatile uint16_t slave_connection_handle = 0;
 extern uint16_t BlindServHandle,
 				MotionServHandle,
+				CarbonMonoxideServHandle,
 				TemperatureServHandle,
 				HumidityServHandle,
 				ThermostatServHandle,
 				TemperatureCharHandle,
 				HumidityCharHandle,
 				MotionDetectedCharHandle,
+				CarbonMonoxideCharHandle,
 				BlindCurrPosCharHandle,
 				BlindTargPosCharHandle,
 				BlindPosStateCharHandle,
@@ -93,7 +96,7 @@ extern uint16_t BlindServHandle,
 				HeatingThresholdCharHandle;
 tBleStatus bret;
 
-volatile int notify_count[3] = {0,0,0};
+volatile int notify_count[4] = {0,0,0,0};
 /* UUIDs */
 //Used when discovering characteristics on other BLUENRG, when this is master role
 UUID_t UUID_Md, UUID_Tm, UUID_Hm, UUID_Bc, UUID_Bt;
@@ -108,6 +111,19 @@ uint8_t hub_name[] = {AD_TYPE_COMPLETE_LOCAL_NAME,'L','i','l','_','H','u','b'};
 
 static char cmd[CMD_BUFF_SIZE];
 
+uint8_t relay_bc_val, relay_md_val;
+uint16_t relay_tm_val, relay_hm_val;
+
+uint8_t CO_detected = 1;
+uint8_t CO_none = 0;
+
+int temperature, humidity;
+volatile uint16_t target_temperature;
+
+extern ADC_InitType xADC_InitType;
+volatile float adc_data1, adc_data2;
+
+struct timer pollTimer;
 
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
@@ -121,6 +137,17 @@ static char cmd[CMD_BUFF_SIZE];
 *******************************************************************************/
 void Process_InputData(uint8_t* data_buffer, uint16_t Nb_bytes)
 {
+	PRINTF("Process_InputData() \n");
+	uint8_t val = 100;
+	struct timer t;
+	Timer_Set(&t, CLOCK_SECOND*10);
+	while(aci_gatt_write_without_resp(slave_connection_handle, bt_handle+1, 1, &val)==BLE_STATUS_NOT_ALLOWED) {
+		CRITICAL_BLE_TICK();
+		// Radio is busy (buffer full).
+		if(Timer_Expired(&t))
+			break;
+	}
+	PRINTF("Wrote to BlindTarget on blind device \n");
 //  static uint16_t end = 0;
 //  uint8_t i;
 //
@@ -284,7 +311,7 @@ uint8_t Lil_BLE_HomeyInit(void)
   Setup_HomeyDeviceAddress();
 
   /* Set the TX power to -2 dBm */
-  aci_hal_set_tx_power_level(1, 4);
+  aci_hal_set_tx_power_level(1, 7);
 
   /* GATT Init */
   ret = aci_gatt_init();    
@@ -509,10 +536,164 @@ void APP_Tick(void)
   if(APP_FLAG(SET_CONNECTABLE)) {
     Connection_StateMachine();
   }
+
+  if (APP_FLAG(POLL_CO))
+  {
+	  if (!APP_FLAG(CO_STABLE))
+	  {
+		  if (ADC_GetFlagStatus(ADC_FLAG_EOC)) {
+			  //Read converted data
+			  adc_data1 = ADC_GetConvertedData(xADC_InitType.ADC_Input, xADC_InitType.ADC_ReferenceVoltage)*1000.0;
+			  printf("ADC Value1: %f mV\n", adc_data1);
+			  SdkDelayMs(100);
+			  adc_data2 = ADC_GetConvertedData(xADC_InitType.ADC_Input, xADC_InitType.ADC_ReferenceVoltage)*1000.0;
+			  printf("ADC Value2: %f mV\n", adc_data2);
+			  SdkDelayMs(100);
+			  if (adc_data1 == adc_data2)
+			  {
+				  APP_FLAG_SET(CO_STABLE);
+				  if (adc_data1 > 400.0)
+				  {
+					  Update_Characteristic_Val(CarbonMonoxideServHandle,CarbonMonoxideCharHandle,0,1,&CO_detected);
+				  }
+				  else
+				  {
+					  Update_Characteristic_Val(CarbonMonoxideServHandle,CarbonMonoxideCharHandle,0,1,&CO_none);
+				  }
+			  }
+
+			  ADC_Cmd(ENABLE);
+		  }
+	  }
+  }
+
+  if(APP_FLAG(POLLING))
+  {
+	  if (Timer_Expired(&pollTimer))
+	  {
+		  /* Blinds Unit is connected to Vent Unit */
+		  uint8_t tmprega[2];
+		  uint8_t tmpregb[2];
+		  //Read temp/humidity sensor
+		  SdkEvalI2CRead(&tmprega,0x40,0xf5,2); //humidity
+		  humidity = (int)(((tmprega[0]*256 + tmprega[1]) *125.0)/65536.0) - 1;
+		  SdkDelayMs(500);
+		  SdkEvalI2CRead(&tmpregb,0x40,0xf3,2); // temp
+		  temperature = (int)((((tmpregb[0]*256 + tmpregb[1]) *175.72)/65536.0) - 46.85);
+		  PRINTF("[Vent] Temperature = %d, Humidity = %d\n", temperature, humidity);
+		  PRINTF("[Vent] Target Temperature = %d\n", target_temperature);
+
+		  // blind temperature variable: relay_tm_val
+		  if(target_temperature > (relay_tm_val + 1)){
+			  if(temperature > relay_tm_val)
+			  {
+				  //open vent
+				  VentControl(VENT_OPEN);
+			  }
+			  else
+			  {
+				  //close vent
+				  VentControl(VENT_CLOSE);
+			  }
+		  }
+		  else if(target_temperature < (relay_tm_val - 1)){
+			  if(temperature < relay_tm_val)
+			  {
+				  //open vent
+				  VentControl(VENT_OPEN);
+			  }
+			  else
+			  {
+				  //close vent
+				  VentControl(VENT_CLOSE);
+			  }
+		  }
+		  else
+		  {
+
+		  }
+
+
+		  //update characteristic value
+		  //Update_Characteristic_Val(ServHandle,TemperatureCharHandle,0,8, &temperature);
+		  //Update_Characteristic_Val(ServHandle,HumidityCharHandle,0,8, &humidity);
+		  //Update_Characteristic_Val(ServHandle,TemperatureCharHandle,0,8, (uint8_t *) &temperature);
+		  //Update_Characteristic_Val(ServHandle,HumidityCharHandle,0,8, (uint8_t *) &humidity);
+//		  struct timer t;
+//		  Timer_Set(&t, CLOCK_SECOND*10);
+//		  while(aci_gatt_update_char_value(ServHandle, TemperatureCharHandle, 0, 2, &temperature)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
+//			  APP_FLAG_SET(TX_BUFFER_FULL);
+//			  while(APP_FLAG(TX_BUFFER_FULL)) {
+//				  NVIC_DisableIRQ(UART_IRQn);
+//				  NVIC_DisableIRQ(GPIO_IRQn);
+//				  BTLE_StackTick();
+//				  NVIC_EnableIRQ(UART_IRQn);
+//				  NVIC_EnableIRQ(GPIO_IRQn);
+//				  // Radio is busy (buffer full).
+//				  if(Timer_Expired(&t)){
+//					  PRINTF("Error! Update Characteristic Timeout\n");
+//					  break;
+//				  }
+//			  }
+//		  }
+//		  // pointer = (uint8_t *) humidptr;
+//
+//		  Timer_Reset(&t);
+//		  while(aci_gatt_update_char_value(ServHandle, HumidityCharHandle, 0, 2, &humidity)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
+//			  APP_FLAG_SET(TX_BUFFER_FULL);
+//			  while(APP_FLAG(TX_BUFFER_FULL)) {
+//				  NVIC_DisableIRQ(UART_IRQn);
+//				  NVIC_DisableIRQ(GPIO_IRQn);
+//				  BTLE_StackTick();
+//				  NVIC_EnableIRQ(UART_IRQn);
+//				  NVIC_EnableIRQ(GPIO_IRQn);
+//				  // Radio is busy (buffer full).
+//				  if(Timer_Expired(&t)){
+//					  PRINTF("Error! Update Characteristic Timeout\n");
+//					  break;
+//				  }
+//			  }
+//		  }
+
+
+
+		  Timer_Reset(&pollTimer);
+	  }
+  }
+
+  if (CHAR_FLAG(RELAY_BC_CHAR))
+  {
+	  Update_Characteristic_Val(BlindServHandle,BlindCurrPosCharHandle,0,1, &relay_bc_val);
+	  CHAR_FLAG_CLEAR(RELAY_BC_CHAR);
+  }
+
+  if (CHAR_FLAG(RELAY_MD_CHAR))
+  {
+	  Update_Characteristic_Val(MotionServHandle, MotionDetectedCharHandle,0,1, &relay_md_val);
+	  CHAR_FLAG_CLEAR(RELAY_MD_CHAR);
+  }
+
+  if (CHAR_FLAG(RELAY_TM_CHAR))
+  {
+	  Update_Characteristic_Val(TemperatureServHandle, TemperatureCharHandle,0,2, &relay_tm_val);
+	  CHAR_FLAG_CLEAR(RELAY_TM_CHAR);
+  }
+
+  if (CHAR_FLAG(RELAY_HM_CHAR))
+  {
+	  Update_Characteristic_Val(HumidityServHandle, HumidityCharHandle,0,2, &relay_hm_val);
+	  CHAR_FLAG_CLEAR(RELAY_HM_CHAR);
+  }
+
+  if (CHAR_FLAG(UPDATE_CURR_TEMP))
+  {
+	  Update_Characteristic_Val(ThermostatServHandle, CurrentTempCharHandle,0,2, &temperature);
+	  CHAR_FLAG_CLEAR(UPDATE_CURR_TEMP);
+  }
         
-  if (device_role == MASTER_ROLE) {
+  if (APP_FLAG(CONNECTED_TO_SLAVE)) {
     /* Start Motion Detector handle Characteristic discovery if not yet done */
-    if (APP_FLAG(CONNECTED_TO_SLAVE) && !APP_FLAG(END_READ_MD_CHAR_HANDLE)) {
+    if (!APP_FLAG(END_READ_MD_CHAR_HANDLE)) {
       if (!APP_FLAG(START_READ_MD_CHAR_HANDLE)) {
         /* Discovery TX characteristic handle by UUID 128 bits */
         const uint8_t charUuid128_Md[16] = { 0x66, 0x9a, 0x0c, 0x20, 0x00, 0x08,
@@ -525,7 +706,7 @@ void APP_Tick(void)
       }
     }
     /* Start Temperature handle Characteristic discovery if not yet done */
-    else if (APP_FLAG(CONNECTED_TO_SLAVE) && !APP_FLAG(END_READ_TM_CHAR_HANDLE)) {
+    else if (!APP_FLAG(END_READ_TM_CHAR_HANDLE)) {
       /* Discovery Temperature characteristic handle by UUID 128 bits */
       if (!APP_FLAG(START_READ_TM_CHAR_HANDLE)) {
         /* Discovery Temperature characteristic handle by UUID 128 bits */
@@ -539,7 +720,7 @@ void APP_Tick(void)
       }
     }
     /* Start Humidity handle Characteristic discovery if not yet done */
-    else if (APP_FLAG(CONNECTED_TO_SLAVE) && !APP_FLAG(END_READ_HM_CHAR_HANDLE)) {
+    else if (!APP_FLAG(END_READ_HM_CHAR_HANDLE)) {
     	/* Discovery Humidity characteristic handle by UUID 128 bits */
     	if (!APP_FLAG(START_READ_HM_CHAR_HANDLE)) {
     		/* Discovery Humidity characteristic handle by UUID 128 bits */
@@ -553,7 +734,7 @@ void APP_Tick(void)
     	}
     }
     /* Start BlindCurrent handle Characteristic discovery if not yet done */
-    else if (APP_FLAG(CONNECTED_TO_SLAVE) && !APP_FLAG(END_READ_BC_CHAR_HANDLE)) {
+    else if (!APP_FLAG(END_READ_BC_CHAR_HANDLE)) {
     	/* Discovery BlindCurrent characteristic handle by UUID 128 bits */
     	if (!APP_FLAG(START_READ_BC_CHAR_HANDLE)) {
     		/* Discovery BlindCurrent characteristic handle by UUID 128 bits */
@@ -567,13 +748,13 @@ void APP_Tick(void)
     	}
     }
     /* Start BlindTarget handle Characteristic discovery if not yet done */
-    else if (APP_FLAG(CONNECTED_TO_SLAVE) && !APP_FLAG(END_READ_BT_CHAR_HANDLE)) {
+    else if (!APP_FLAG(END_READ_BT_CHAR_HANDLE)) {
     	/* Discovery BlindTarget characteristic handle by UUID 128 bits */
     	if (!APP_FLAG(START_READ_BT_CHAR_HANDLE)) {
     		/* Discovery BlindTarget characteristic handle by UUID 128 bits */
     		const uint8_t charUuid128_Bt[16] = { 0x66, 0x9a, 0x0c, 0x20, 0x00, 0x08,
-    											 0x96, 0x9e, 0xe2, 0x11, 0x9e, 0xb1,
-												 0xf2, 0x38, 0x17, 0x00 };
+	  	  	  	  	  	  	  	  	  	  	  	 0x96, 0x9e, 0xe2, 0x11, 0x9e, 0xb1,
+												 0xb2, 0x38, 0x17, 0x11 };
 
     		Osal_MemCpy(&UUID_Bt.UUID_16, charUuid128_Bt, 16);
     		aci_gatt_disc_char_by_uuid(slave_connection_handle, 0x0001, 0xFFFF,UUID_TYPE_128,&UUID_Bt);
@@ -591,67 +772,52 @@ void APP_Tick(void)
       Timer_Set(&t, CLOCK_SECOND*10);
 
       //Register to be notified on the blind homey's motion detector characteristic
-      if (!APP_FLAG(START_TM_CCD) && !APP_FLAG(END_TM_CCD))
+      if (!CHAR_FLAG(START_TM_CCD) && !CHAR_FLAG(END_TM_CCD))
       {
-		  APP_FLAG_SET(START_TM_CCD);
+		  CHAR_FLAG_SET(START_TM_CCD);
 		  while(aci_gatt_write_char_desc(slave_connection_handle, tm_handle+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED) {
 			  // Radio is busy.
 			  if(Timer_Expired(&t)) break;
 		  }
       }
-      while(!APP_FLAG(END_TM_CCD))
-      {
-    	  NVIC_DisableIRQ(UART_IRQn);
-		  NVIC_DisableIRQ(GPIO_IRQn);
-		  BTLE_StackTick();
-		  NVIC_EnableIRQ(UART_IRQn);
-		  NVIC_EnableIRQ(GPIO_IRQn);
-      }
+      while(!CHAR_FLAG(END_TM_CCD)) CRITICAL_BLE_TICK();
       PRINTF("TM\n");
 
       Timer_Restart(&t);
-      if (!APP_FLAG(START_MD_CCD) && !APP_FLAG(END_MD_CCD))
+      if (!CHAR_FLAG(START_MD_CCD) && !CHAR_FLAG(END_MD_CCD))
       {
-    	  APP_FLAG_SET(START_MD_CCD);
+    	  CHAR_FLAG_SET(START_MD_CCD);
     	  while(aci_gatt_write_char_desc(slave_connection_handle, md_handle+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED) {
 			  // Radio is busy.
 			  if(Timer_Expired(&t)) break;
 		  }
       }
-      while(!APP_FLAG(END_MD_CCD))
-	  {
-		  NVIC_DisableIRQ(UART_IRQn);
-		  NVIC_DisableIRQ(GPIO_IRQn);
-		  BTLE_StackTick();
-		  NVIC_EnableIRQ(UART_IRQn);
-		  NVIC_EnableIRQ(GPIO_IRQn);
-	  }
+      while(!CHAR_FLAG(END_MD_CCD)) CRITICAL_BLE_TICK();
       PRINTF("MD\n");
 
       Timer_Restart(&t);
-      if (!APP_FLAG(START_HM_CCD) && !APP_FLAG(END_HM_CCD))
+      if (!CHAR_FLAG(START_HM_CCD) && !CHAR_FLAG(END_HM_CCD))
 	  {
-    	  APP_FLAG_SET(START_HM_CCD);
+    	  CHAR_FLAG_SET(START_HM_CCD);
     	  while(aci_gatt_write_char_desc(slave_connection_handle, hm_handle+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED) {
 			  // Radio is busy.
 			  if(Timer_Expired(&t)) break;
 		  }
 	  }
-      while(!APP_FLAG(END_HM_CCD))
-	  {
-		  NVIC_DisableIRQ(UART_IRQn);
-		  NVIC_DisableIRQ(GPIO_IRQn);
-		  BTLE_StackTick();
-		  NVIC_EnableIRQ(UART_IRQn);
-		  NVIC_EnableIRQ(GPIO_IRQn);
-	  }
+      while(!CHAR_FLAG(END_HM_CCD)) CRITICAL_BLE_TICK();
       PRINTF("HM\n");
 
       Timer_Restart(&t);
-      while(aci_gatt_write_char_desc(slave_connection_handle, bc_handle+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED) {
-    	  // Radio is busy.
-    	  if(Timer_Expired(&t)) break;
+      if (!CHAR_FLAG(START_BC_CCD) && !CHAR_FLAG(END_BC_CCD))
+      {
+		  CHAR_FLAG_SET(START_BC_CCD);
+    	  while(aci_gatt_write_char_desc(slave_connection_handle, bc_handle+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED) {
+			  // Radio is busy.
+			  if(Timer_Expired(&t)) break;
+		  }
       }
+      while(!CHAR_FLAG(END_BC_CCD)) CRITICAL_BLE_TICK();
+
       PRINTF("BC\n");
 //      Timer_Restart(&t);
 //      while(aci_gatt_write_char_desc(slave_connection_handle, bt_handle+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED) {
@@ -763,7 +929,12 @@ void hci_le_connection_complete_event(uint8_t Status,
 
   /* Set the exit state for the Connection state machine: APP_FLAG_CLEAR(SET_CONNECTABLE); */
   //if (APP_FLAG(CONNECTED_TO_SLAVE)) APP_FLAG_CLEAR(SET_CONNECTABLE);
-  if (APP_FLAG(CONNECTED_TO_SLAVE) && APP_FLAG(CONNECTED_TO_HUB)) APP_FLAG_CLEAR(SET_CONNECTABLE);
+  if (APP_FLAG(CONNECTED_TO_SLAVE) && APP_FLAG(CONNECTED_TO_HUB))
+  {
+	  APP_FLAG_CLEAR(SET_CONNECTABLE);
+	  APP_FLAG_SET(POLLING);
+	  Timer_Set(&pollTimer, CLOCK_SECOND*10);
+  }
 
   PRINTF("hci_le_connection_complete_event() Role=%d\n", device_role);
 
@@ -786,6 +957,8 @@ void hci_disconnection_complete_event(uint8_t Status,
 		APP_FLAG_CLEAR(CONNECTED_TO_SLAVE);
 
 		APP_FLAG_CLEAR(NOTIFICATIONS_ENABLED);
+
+		CHAR_FLAG_CLEAR(START_TM_CCD);
 
 		APP_FLAG_CLEAR(START_READ_MD_CHAR_HANDLE);
 		APP_FLAG_CLEAR(END_READ_MD_CHAR_HANDLE);
@@ -883,24 +1056,41 @@ void aci_gatt_notification_event(uint16_t Connection_Handle,
   PRINTF("aci_gatt_notification_event()\n");
   if(Attribute_Handle == md_handle+1) {
 	  notify_count[0]++;
+	  relay_md_val = Attribute_Value[0];
     //for(volatile uint8_t i = 0; i < Attribute_Value_Length; i++)
-    //printf("[Blinds] Motion Sensor: %02X\n", Attribute_Value[0]);
+      printf("[Blinds] Motion Sensor: %02X\n", Attribute_Value[0]);
+      CHAR_FLAG_SET(RELAY_MD_CHAR);
     //Update_Characteristic_Val(MotionServHandle, MotionDetectedCharHandle,0,Attribute_Value_Length, Attribute_Value);
   }
   else if(Attribute_Handle == tm_handle+1) {
 	  notify_count[1]++;
+	  //relay_tm_val = Attribute_Value[0];
+	  Osal_MemCpy(&relay_tm_val, Attribute_Value, Attribute_Value_Length);
       //for(volatile uint8_t i = 0; i < Attribute_Value_Length; i++)
-      //printf("[Blinds] Temperature Notification\n");
+	  printf("length: %d\n", Attribute_Value_Length);
+      printf("[Blinds] Temperature Notification %d\n", relay_tm_val);
+      CHAR_FLAG_SET(RELAY_TM_CHAR);
       //Update_Characteristic_Val(TemperatureServHandle, TemperatureCharHandle,0,Attribute_Value_Length, Attribute_Value);
   }
   else if(Attribute_Handle == hm_handle+1) {
 	  notify_count[2]++;
+	  //relay_hm_val = Attribute_Value[0];
+	  Osal_MemCpy(&relay_hm_val, Attribute_Value, Attribute_Value_Length);
       //for(volatile uint8_t i = 0; i < Attribute_Value_Length; i++)
-      //printf("[Blinds] Humidity Notification\n");
+	  printf("length: %d\n", Attribute_Value_Length);
+      printf("[Blinds] Humidity Notification %d\n", relay_hm_val);
+      CHAR_FLAG_SET(RELAY_HM_CHAR);
       //Update_Characteristic_Val(HumidityServHandle, HumidityCharHandle,0,Attribute_Value_Length, Attribute_Value);
   }
+  else if(Attribute_Handle == bc_handle+1) {
+	  notify_count[3]++;
+	  relay_bc_val = Attribute_Value[0];
+	  printf("[Blinds] BlindCurrPos Notification: %d\n", relay_bc_val);
+	  CHAR_FLAG_SET(RELAY_BC_CHAR);
+	  //Update_Characteristic_Val(BlindServHandle,BlindCurrPosCharHandle,0,Attribute_Value_Length,Attribute_Value);
+  }
 
-  PRINTF("{%02X,%02X,%02X}\n", notify_count[0], notify_count[1], notify_count[2]);
+  PRINTF("{%02X,%02X,%02X,%02X}\n", notify_count[0], notify_count[1], notify_count[2], notify_count[3]);
 } /* end aci_gatt_notification_event() */
 
 /*******************************************************************************
@@ -962,9 +1152,10 @@ void aci_gatt_proc_complete_event(uint16_t Connection_Handle,
 		APP_FLAG_SET(END_READ_BT_CHAR_HANDLE);
 	}
 
-	if (APP_FLAG(START_TM_CCD) && !APP_FLAG(END_TM_CCD)) APP_FLAG_SET(END_TM_CCD);
-	if (APP_FLAG(START_MD_CCD) && !APP_FLAG(END_MD_CCD)) APP_FLAG_SET(END_MD_CCD);
-	if (APP_FLAG(START_HM_CCD) && !APP_FLAG(END_HM_CCD)) APP_FLAG_SET(END_HM_CCD);
+	if (CHAR_FLAG(START_TM_CCD) && !CHAR_FLAG(END_TM_CCD)) CHAR_FLAG_SET(END_TM_CCD);
+	if (CHAR_FLAG(START_MD_CCD) && !CHAR_FLAG(END_MD_CCD)) CHAR_FLAG_SET(END_MD_CCD);
+	if (CHAR_FLAG(START_HM_CCD) && !CHAR_FLAG(END_HM_CCD)) CHAR_FLAG_SET(END_HM_CCD);
+	if (CHAR_FLAG(START_BC_CCD) && !CHAR_FLAG(END_BC_CCD)) CHAR_FLAG_SET(END_BC_CCD);
 
 } /* end aci_gatt_proc_complete_event() */
 

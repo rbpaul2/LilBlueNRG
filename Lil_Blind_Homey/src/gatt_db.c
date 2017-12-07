@@ -36,6 +36,7 @@ Char_UUID_t char_uuid;
 
 extern volatile int cur_pos;
 extern volatile int full_pos;
+extern volatile int last_target_pos;
 
 /*******************************************************************************
 * Function Name  : Add_ChatService
@@ -166,16 +167,20 @@ void Update_Characteristic_Val( uint16_t Service_Handle,
 *******************************************************************************/
 void Attribute_Modified_CB(uint16_t handle, uint16_t data_length, uint8_t *att_data)
 {
+	printf("[ATT MODIFIED]\n");
 	if(handle == BlindTargPosCharHandle + 1)
 	{
 		uint32_t val;
-		printf("[ATT MODIFIED] Blind Target Position = %d \n", *att_data);
-		MotorControl(*att_data);
-		val = (int)(((double)cur_pos/(double)full_pos) * 100);
-		if (3 > abs(*att_data - val)) val = *att_data;
-		printf("%d \n", data_length);
-		printf("%d \n", val);
-		Update_Characteristic_Val(ServHandle,BlindCurrPosCharHandle,0,data_length, &val);
+		last_target_pos = *att_data;
+		printf("[ATT MODIFIED] Blind Target Position = %d \n", last_target_pos);
+		APP_FLAG_SET(BLIND_TARGET_PENDING);
+
+//		MotorControl(*att_data);
+//		val = (int)(((double)cur_pos/(double)full_pos) * 100);
+//		if (3 > abs(*att_data - val)) val = *att_data;
+//		printf("%d \n", data_length);
+//		printf("%d \n", val);
+//		Update_Characteristic_Val(ServHandle,BlindCurrPosCharHandle,0,data_length, &val);
 	}
 //	else if(handle == TemperatureCharHandle + 1)
 //	{

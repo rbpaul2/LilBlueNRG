@@ -118,11 +118,7 @@ int main(void)
   
   PRINTF("BLE Stack Initialized & Device Configured\r\n");
 
-  //Enable polling timer
-  //MFT_Cmd(MFT1,ENABLE);
-
-  /* Set APP FLAGS */
-  APP_FLAG_CLEAR(CAL_START);
+  //MotorControl(50);
   while(1) {
     /* Disable UART IRQ to avoid calling BLE stack functions while BTLE_StackTick() is running. */
     NVIC_DisableIRQ(UART_IRQn);
