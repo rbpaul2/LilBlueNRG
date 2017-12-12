@@ -29,6 +29,7 @@
 #include "app_state.h"
 #include "bluenrg1_stack.h"
 #include "SDK_EVAL_Com.h"
+#include "SDK_EVAL_Config.h"
 #include "Lil_MotionDetector.h"
 #include "clock.h"
 #include "osal.h"
@@ -45,16 +46,26 @@
   * @{
   */ 
 
-extern uint16_t ServHandle,
+extern uint16_t BlindServHandle,
 				MotionServHandle,
 				TemperatureServHandle,
+				HumidityServHandle,
+				ThermostatServHandle,
 				TemperatureCharHandle,
 				HumidityCharHandle,
 				MotionDetectedCharHandle,
 				BlindCurrPosCharHandle,
 				BlindTargPosCharHandle,
-				BlindPosStateCharHandle;
+				BlindPosStateCharHandle,
+				CurrentTempCharHandle,
+				TargetTempCharHandle,
+				CurrentHCStateCharHandle,
+				TargetHCStateCharHandle,
+				TempUnitsCharHandle,
+				CoolingThresholdCharHandle,
+				HeatingThresholdCharHandle;
 
+extern volatile uint32_t lSystickCounter;
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 #ifndef DEBUG
@@ -72,7 +83,7 @@ extern uint16_t ServHandle,
 #define MOTION_OFF	0
 /* Private variables ---------------------------------------------------------*/
 uint8_t MotionDetectedVal;
-
+volatile int rtc_cnt = 0;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -97,6 +108,35 @@ void HardFault_Handler(void)
   {}
 }
 
+/*
+ * This function handle RTC timer interrupt
+ * The interrupt handler will set GPIO_Pin_7 to low for 60 seconds
+ * and then set GPIO_Pin_7 to high for 90 seconds
+ */
+void RTC_Handler(void){
+	if(SET == RTC_IT_Status(RTC_IT_TIMER))
+	{
+		/*clear pending interrupt flag*/
+		RTC_IT_Clear(RTC_IT_TIMER);
+		++rtc_cnt;
+		rtc_cnt = rtc_cnt % 5;
+		if(rtc_cnt == 2)
+		{
+			GPIO_WriteBit(GPIO_Pin_6, SET);
+		}
+		else if(rtc_cnt == 0)
+		{
+			APP_FLAG_CLEAR(POLL_CO);
+			GPIO_WriteBit(GPIO_Pin_6, RESET);
+		}
+		else if(rtc_cnt == 3)
+		{
+			APP_FLAG_CLEAR(CO_STABLE);
+			APP_FLAG_SET(POLL_CO);
+		}
+	}
+}
+
 /**
   * @brief  This function handles SVCall exception.
   */
@@ -117,6 +157,7 @@ void SVC_Handler(void)
 void SysTick_Handler(void)
 {
   SysCount_Handler();
+  lSystickCounter++;
 }
 
 void GPIO_Handler(void)
@@ -136,7 +177,11 @@ void GPIO_Handler(void)
 			while(aci_gatt_update_char_value(MotionServHandle,MotionDetectedCharHandle,0,1,&MotionDetectedVal)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
 				APP_FLAG_SET(TX_BUFFER_FULL);
 				while(APP_FLAG(TX_BUFFER_FULL)) {
+					NVIC_DisableIRQ(UART_IRQn);
+				    NVIC_DisableIRQ(GPIO_IRQn);
 					BTLE_StackTick();
+					NVIC_EnableIRQ(UART_IRQn);
+					NVIC_EnableIRQ(GPIO_IRQn);
 					// Radio is busy (buffer full).
 					if(Timer_Expired(&t))
 						break;
@@ -151,7 +196,11 @@ void GPIO_Handler(void)
 			while(aci_gatt_update_char_value(MotionServHandle,MotionDetectedCharHandle,0,1,&MotionDetectedVal)==BLE_STATUS_INSUFFICIENT_RESOURCES) {
 				APP_FLAG_SET(TX_BUFFER_FULL);
 				while(APP_FLAG(TX_BUFFER_FULL)) {
+					NVIC_DisableIRQ(UART_IRQn);
+					NVIC_DisableIRQ(GPIO_IRQn);
 					BTLE_StackTick();
+					NVIC_EnableIRQ(UART_IRQn);
+					NVIC_EnableIRQ(GPIO_IRQn);
 					// Radio is busy (buffer full).
 					if(Timer_Expired(&t))
 						break;
@@ -159,18 +208,6 @@ void GPIO_Handler(void)
 			}
 		}
 
-	}
-
-	/* If GPIO Interrupt Pin 13 */
-	else if ( GPIO_GetITPendingBit(GPIO_Pin_13) == SET ) {
-		GPIO_ClearITPendingBit(GPIO_Pin_13);
-
-		if( GPIO_ReadBit(GPIO_Pin_13) == RESET ) {
-			SdkEvalLedOff(LED2);
-		}
-		else {
-			SdkEvalLedOn(LED2);
-		}
 	}
 
 	NVIC_EnableIRQ(UART_IRQn);

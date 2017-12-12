@@ -170,6 +170,11 @@
 			<locationURI>PARENT-3-PROJECT_LOC/Library/SDK_Eval_BlueNRG1/src/SDK_EVAL_Led.c</locationURI>
 		</link>
 		<link>
+			<name>SDK_Eval_BlueNRG1/SDK_EVAL_I2C.c</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/Library/SDK_Eval_BlueNRG1/src/SDK_EVAL_I2C.c</locationURI>
+		</link>
+		<link>
 			<name>Stack/libbluenrg1_stack.a</name>
 			<type>1</type>
 			<locationURI>PARENT-3-PROJECT_LOC/Library/Bluetooth_LE/library/libbluenrg1_stack.a</locationURI>
@@ -193,6 +198,11 @@
 			<name>User/Lil_MotionDetector.c</name>
 			<type>1</type>
 			<locationURI>PARENT-2-PROJECT_LOC/src/Lil_MotionDetector.c</locationURI>
+		</link>
+		<link>
+			<name>User/Lil_Motor.c</name>
+			<type>1</type>
+			<locationURI>PARENT-2-PROJECT_LOC/src/Lil_Motor.c</locationURI>
 		</link>
 		<link>
 			<name>User/chat.c</name>

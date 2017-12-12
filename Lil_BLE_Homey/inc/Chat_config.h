@@ -16,10 +16,10 @@
 #define DEFAULT_NUM_GATT_ATTRIBUTES 15 // REFER TO USER MANUAL PM0257 Section 2.3
 
 /* Number of services requests from the homey app */
-#define NUM_APP_GATT_SERVICES 3
+#define NUM_APP_GATT_SERVICES 6
 
 /* Number of attributes requests from the homey app */
-#define NUM_APP_GATT_ATTRIBUTES 30
+#define NUM_APP_GATT_ATTRIBUTES 110
 
 /* Number of links needed for the demo: 1
  * Only 1 the default
@@ -40,7 +40,7 @@
 #endif
 
 /* Array size for the attribute value */
-#define ATT_VALUE_ARRAY_SIZE    (44 + 300 /*80*/ + OTA_ATT_VALUE_ARRAY_SIZE) //(GATT + GAP) = 44 + Chat  (TX (41) + RX (39) characteristics)   Services
+#define ATT_VALUE_ARRAY_SIZE    (44 + 600 /*80*/ + OTA_ATT_VALUE_ARRAY_SIZE) //(GATT + GAP) = 44 + Chat  (TX (41) + RX (39) characteristics)   Services
 
 /* Flash security database size */
 #define FLASH_SEC_DB_SIZE       (0x400)
