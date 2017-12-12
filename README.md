@@ -4,7 +4,7 @@ This Repo contains 2 My Lil Homey projects:
 Lil_BLE_Homey - The Magic Vent application code
 Lil_Blind_Homey - The Magic Blind application code 
 
-The following files were created by the Lil Homey Team for interfacing with various peripherals on the BlueNRG-1 or 2, specifically The Magic Blinds:__
+The following files were created by the Lil Homey Team for interfacing with various peripherals on the BlueNRG-1 or 2, specifically The Magic Blinds:  
 Lil_Blind_Homey/Lil_MotionDetector.c, .h - Interface for initializing interrupts triggered by the motion detector__
 Lil_Blind_Homey/Lil_Motor.c, .h - Interface for controlling the motor and calibrating it's opening/closing range by reading from the optical encoder__
 Lil_Blind_Homey/chat.c - (Modified from demo application) Connects to Magic Vent as Slave. Can be configured to connect directly to Central Hub (Raspberry Pi)__
