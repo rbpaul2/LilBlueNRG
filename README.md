@@ -16,6 +16,9 @@ The Magic Vent's application code contains the same interfaces as The Magic Blin
 Lil_BLE_Homey/chat.c - Handles connection state machine for acting as Master & Slave simultaneously. Handles BLE event callbacks for things like notifications and remote device writes to local gatt characteristics  
 Lil_BLE_Homey/gatt_db.c - Sets up GATT services and characteristics for the Vents as well as the necessary characteristics to relay the Blind's services   
 
+
+To start working with this project:
+-----------------------------------
 Install Git Bash for Windows 10 before proceeding.
 
 Follow these steps exactly to set up repo in Windows 10:
